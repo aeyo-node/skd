@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+/npm-debug.log*
+
+# Next.js build output
+.next/
+out/
+
+# Environment files
+.env*.local
+.env
+.env.local
+
+# IDE / OS files
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

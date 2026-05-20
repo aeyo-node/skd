@@ -1,0 +1,20 @@
+{
+  "id": "track-001",
+  "title": "Phase 2 Implementation",
+  "status": "complete",
+  "priority": "high",
+  "assignee": "Antigravity",
+  "created_at": "2026-05-19T20:00:00Z",
+  "completed_at": "2026-05-20T02:00:00Z",
+  "current_phase": 3,
+  "current_task": "3.4",
+  "phases": {
+    "total": 3,
+    "completed": 3
+  },
+  "tasks": {
+    "total": 11,
+    "completed": 11
+  },
+  "commits": []
+}
