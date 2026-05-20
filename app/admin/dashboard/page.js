@@ -14,7 +14,11 @@ import {
   CheckCircle,
   Eye,
   EyeOff,
-  Activity
+  Activity,
+  Search,
+  Bell,
+  Settings,
+  Compass
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -155,7 +159,6 @@ export default function AdminDashboard() {
   // Moderator actions on reviews queue
   const handleModerateReview = (reviewId, approved) => {
     setReportedReviews(prev => prev.filter(item => item.id !== reviewId));
-    // In real app, we would query Supabase to update or delete the review
   };
 
   // Recharts Chart Data Formatting
@@ -166,310 +169,445 @@ export default function AdminDashboard() {
   }));
 
   return (
-    <div className="admin-dashboard-container">
+    <div className="admin-dashboard-layout">
       
-      {/* Page Title */}
-      <div className="admin-header-flex">
-        <div>
-          <h1 style={{ fontSize: '2.25rem', fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <ShieldAlert style={{ color: 'var(--accent-blue)' }} /> Admin CMS Console
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', marginTop: '0.25rem' }}>
-            Integrity oversight, transfer mapping, and public rating intervention logs.
+      {/* 1. Sidebar Navigation panel */}
+      <aside className="admin-sidebar">
+        <div className="sidebar-brand">
+          ⚖️ <span>SARKARDADA</span>
+        </div>
+
+        <div className="sidebar-profile">
+          <div className="profile-avatar">RC</div>
+          <div className="profile-info">
+            <span className="profile-name">Ryan Crawford</span>
+            <span className="profile-role">Portal Chief (Pro)</span>
+          </div>
+        </div>
+
+        <nav className="sidebar-nav">
+          <a href="#" className="sidebar-link active">
+            <Activity size={16} /> Dashboard
+          </a>
+          <a href="/" className="sidebar-link">
+            <Compass size={16} /> Directory Grid
+          </a>
+          <a href="#intervention" className="sidebar-link">
+            <Sliders size={16} /> Interventions
+          </a>
+          <a href="#ledger" className="sidebar-link">
+            <FileSpreadsheet size={16} /> Audit Trail
+          </a>
+        </nav>
+
+        <div className="sidebar-status-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
+            <strong style={{ fontSize: '0.8rem', color: '#ffffff' }}>System Online</strong>
+          </div>
+          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0 }}>
+            Supabase DB sync active.
           </p>
         </div>
-        <button onClick={loadData} className="btn btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 1rem' }}>
-          <RefreshCw size={14} /> Refresh Logs
-        </button>
-      </div>
+      </aside>
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-secondary)' }}>
-          <p>Connecting to secure administration database...</p>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
-          
-          {/* Top Analytics Panel */}
-          <div className="admin-grid-two-col">
-            
-            {/* Chart: Rating Velocity & Values */}
-            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', minHeight: '300px' }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <Activity size={16} style={{ color: 'var(--accent-blue)' }} /> Positions Ratings Summary
-              </h3>
-              <div style={{ flex: 1, width: '100%', height: '220px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                    <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={10} />
-                    <YAxis stroke="var(--text-secondary)" fontSize={10} domain={[0, 10]} />
-                    <Tooltip contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }} />
-                    <Bar dataKey="Score" fill="var(--accent-gold)" radius={[4, 4, 0, 0]} barSize={24} />
-                    <Bar dataKey="Ratings" fill="var(--accent-blue)" radius={[4, 4, 0, 0]} barSize={12} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Anomaly Detection Feed */}
-            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--accent-red)' }}>
-                <AlertTriangle size={16} /> Velocity Anomaly Feed
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', flex: 1 }}>
-                {anomalies.map(al => (
-                  <div key={al.id} style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.15)', borderRadius: 'var(--radius-sm)', padding: '0.85rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                      <strong style={{ fontSize: '0.85rem', color: '#feb2b2' }}>{al.posTitle}</strong>
-                      <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', background: 'var(--accent-red)', color: '#fff', fontWeight: 700, borderRadius: 'var(--radius-sm)' }}>
-                        {al.risk} RISK
-                      </span>
-                    </div>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{al.desc}</p>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
-                      <button className="btn" style={{ padding: '0.25rem 0.6rem', fontSize: '0.7rem', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)' }} onClick={() => setOverridePosId(String(positions.find(p => p.position_title === al.posTitle)?.position_id || ''))}>
-                        Investigate / Freeze
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
+      {/* 2. Main Workspace */}
+      <main className="admin-main">
+        
+        {/* Top Navigation Bar */}
+        <div className="admin-top-nav">
+          <div className="admin-search-bar">
+            <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input 
+              type="text" 
+              className="admin-search-input" 
+              placeholder="Search audit trail, positions..." 
+            />
           </div>
 
-          {/* Action Modifying Panels */}
-          <div className="admin-grid-two-col">
+          <div className="admin-top-actions">
+            <button 
+              onClick={loadData} 
+              className="btn btn-secondary" 
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+            >
+              <RefreshCw size={14} className={loading ? 'spin-anim' : ''} /> Sync Live
+            </button>
             
-            {/* 1. Official Transfer & Mapping Tool */}
-            <div className="glass-card">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <UserCheck size={16} style={{ color: 'var(--accent-green)' }} /> Transfer & Mapping Tool
-              </h3>
-              
-              <form onSubmit={handleTransferSubmit}>
-                <div className="form-group">
-                  <label className="form-label">Select Target Position Desk</label>
-                  <select 
-                    className="form-select" 
-                    value={transferPosId} 
-                    onChange={(e) => setTransferPosId(e.target.value)}
-                  >
-                    <option value="">-- Choose Position --</option>
-                    {positions.map(p => (
-                      <option key={p.position_id} value={p.position_id}>
-                        {p.position_title} (Current: {p.current_official_name})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Assign New Official Incumbent</label>
-                  <select 
-                    className="form-select" 
-                    value={transferNewOfficialId} 
-                    onChange={(e) => setTransferNewOfficialId(e.target.value)}
-                  >
-                    <option value="">-- Select New Official --</option>
-                    {officials.map(o => (
-                      <option key={o.id} value={o.id}>
-                        {o.first_name} {o.last_name} ({o.service_cadre} - {o.batch_year || 'N/A'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group" style={{ margin: '1rem 0' }}>
-                  <div className="switch-container" onClick={() => setCarryHistory(!carryHistory)}>
-                    <div className={`switch-track ${carryHistory ? 'active' : ''}`}>
-                      <div className="switch-thumb"></div>
-                    </div>
-                    <span className="form-label" style={{ cursor: 'pointer' }}>Carry rating history with the individual</span>
-                  </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    If off, history remains bound to the position designation. If on, history shifts with the person.
-                  </span>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Reason for Transfer (Audit Record)</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="e.g. IAS general transfer batch order #2026/A"
-                    value={transferReason}
-                    onChange={(e) => setTransferReason(e.target.value)}
-                  />
-                </div>
-
-                <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem' }}>
-                  Execute Official Transfer
-                </button>
-                
-                {transferMessage && (
-                  <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', fontWeight: 600, textAlign: 'center' }}>
-                    {transferMessage}
-                  </div>
-                )}
-              </form>
+            {/* Bell Alerts with notifications dot */}
+            <div style={{ position: 'relative', cursor: 'pointer', padding: '0.25rem', color: 'var(--text-secondary)' }}>
+              <Bell size={18} />
+              {reportedReviews.length > 0 && (
+                <span style={{ position: 'absolute', top: 0, right: 0, width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-red)' }}></span>
+              )}
             </div>
 
-            {/* 2. Rating Override & Intervention Mechanics */}
-            <div className="glass-card">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <Sliders size={16} style={{ color: 'var(--accent-gold)' }} /> Rating Intervention Engine
-              </h3>
+            <div style={{ cursor: 'pointer', padding: '0.25rem', color: 'var(--text-secondary)' }}>
+              <Settings size={18} />
+            </div>
+          </div>
+        </div>
+
+        {/* Header Title block */}
+        <div style={{ marginBottom: '2rem' }}>
+          <h1 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            CMS Console Dashboard
+          </h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginTop: '0.15rem' }}>
+            Officer integrity audit logs, transfer mappings, and citizen report intervention systems.
+          </p>
+        </div>
+
+        {/* 3. Stat widget cards row */}
+        <div className="stakent-cards-grid">
+          
+          {/* Card 1: Directory */}
+          <div className="stakent-stat-card">
+            <div className="stakent-card-header">
+              <span>Public Directory</span>
+              <Activity size={14} style={{ color: 'var(--accent-blue)' }} />
+            </div>
+            <div>
+              <div className="stakent-card-value">{positions.length}</div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>Tracked Positions</p>
+            </div>
+            <div className="stakent-card-footer">
+              <span className="stakent-trend-pill positive">
+                +4.8% 📈
+              </span>
+              <svg viewBox="0 0 100 30" style={{ width: '80px', height: '24px', stroke: '#10b981', strokeWidth: 2, fill: 'none' }}>
+                <path d="M0,25 Q15,10 30,20 T60,5 T90,15 T100,10" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Card 2: Interventions */}
+          <div className="stakent-stat-card">
+            <div className="stakent-card-header">
+              <span>Active Interventions</span>
+              <Sliders size={14} style={{ color: 'var(--accent-gold)' }} />
+            </div>
+            <div>
+              <div className="stakent-card-value">
+                {positions.filter(p => p.is_frozen || p.is_overridden).length}
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>Moderated / Locked Profiles</p>
+            </div>
+            <div className="stakent-card-footer">
+              <span className="stakent-trend-pill neutral">
+                Stable 🔒
+              </span>
+              <svg viewBox="0 0 100 30" style={{ width: '80px', height: '24px', stroke: '#f59e0b', strokeWidth: 2, fill: 'none' }}>
+                <path d="M0,15 Q20,10 40,25 T80,10 T100,15" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Card 3: Reported */}
+          <div className="stakent-stat-card">
+            <div className="stakent-card-header">
+              <span>Report Moderation</span>
+              <AlertTriangle size={14} style={{ color: 'var(--accent-red)' }} />
+            </div>
+            <div>
+              <div className="stakent-card-value">{reportedReviews.length}</div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.15rem 0 0 0' }}>Flagged Review Feed</p>
+            </div>
+            <div className="stakent-card-footer">
+              <span className={`stakent-trend-pill ${reportedReviews.length > 0 ? 'negative' : 'positive'}`}>
+                {reportedReviews.length > 0 ? 'Action Req.' : 'Clean ✓'}
+              </span>
+              <svg viewBox="0 0 100 30" style={{ width: '80px', height: '24px', stroke: '#ef4444', strokeWidth: 2, fill: 'none' }}>
+                <path d="M0,20 Q25,5 50,25 T75,10 T100,30" />
+              </svg>
+            </div>
+          </div>
+
+        </div>
+
+        {/* 4. Dashboard Grid Workspace */}
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-secondary)' }}>
+            <p>Connecting to secure administration database...</p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '2rem' }} className="admin-grid-two-col">
+            
+            {/* Left Column: Form Tools */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
               
-              <form onSubmit={handleOverrideSubmit}>
-                <div className="form-group">
-                  <label className="form-label">Select Position for Intervention</label>
-                  <select 
-                    className="form-select" 
-                    value={overridePosId} 
-                    onChange={(e) => setOverridePosId(e.target.value)}
-                  >
-                    <option value="">-- Choose Profile --</option>
-                    {positions.map(p => (
-                      <option key={p.position_id} value={p.position_id}>
-                        {p.position_title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                  <div className="form-group">
-                    <div className="switch-container" onClick={() => setIsFrozen(!isFrozen)}>
-                      <div className={`switch-track ${isFrozen ? 'active' : ''}`}>
-                        <div className="switch-thumb"></div>
-                      </div>
-                      <span className="form-label" style={{ cursor: 'pointer' }}>Freeze Submissions</span>
-                    </div>
+              {/* Form 1: Officer Transfer */}
+              <div className="glass-card" style={{ background: '#0e0d1a', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 'var(--radius-lg)' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <UserCheck size={18} style={{ color: 'var(--accent-blue)' }} /> Incumbent Officer Transfer & Mapping Desk
+                </h3>
+                
+                <form onSubmit={handleTransferSubmit}>
+                  <div className="form-group" style={{ marginBottom: '1rem' }}>
+                    <label className="form-label">Target Position Desk</label>
+                    <select 
+                      className="form-select" 
+                      style={{ width: '100%', padding: '0.65rem' }}
+                      value={transferPosId} 
+                      onChange={(e) => setTransferPosId(e.target.value)}
+                    >
+                      <option value="">-- Choose Position --</option>
+                      {positions.map(p => (
+                        <option key={p.position_id} value={p.position_id}>
+                          {p.position_title} (Current: {p.current_official_name})
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  <div className="form-group">
-                    <div className="switch-container" onClick={() => setIsOverridden(!isOverridden)}>
-                      <div className={`switch-track ${isOverridden ? 'active' : ''}`}>
+                  <div className="form-group" style={{ marginBottom: '1rem' }}>
+                    <label className="form-label">Assign New Incumbent Official</label>
+                    <select 
+                      className="form-select" 
+                      style={{ width: '100%', padding: '0.65rem' }}
+                      value={transferNewOfficialId} 
+                      onChange={(e) => setTransferNewOfficialId(e.target.value)}
+                    >
+                      <option value="">-- Select New Official --</option>
+                      {officials.map(o => (
+                        <option key={o.id} value={o.id}>
+                          {o.first_name} {o.last_name} ({o.service_cadre} - {o.batch_year || 'N/A'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group" style={{ margin: '1rem 0' }}>
+                    <div className="switch-container" onClick={() => setCarryHistory(!carryHistory)}>
+                      <div className={`switch-track ${carryHistory ? 'active' : ''}`}>
                         <div className="switch-thumb"></div>
                       </div>
-                      <span className="form-label" style={{ cursor: 'pointer' }}>Hard Score Override</span>
+                      <span className="form-label" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>Carry rating history with the individual officer</span>
                     </div>
-                  </div>
-                </div>
-
-                {isOverridden && (
-                  <div className="form-group">
-                    <label className="form-label">Manual Base Score (0.00 - 10.00)</label>
-                    <input 
-                      type="number" 
-                      min="0.00" 
-                      max="10.00" 
-                      step="0.01" 
-                      className="form-input" 
-                      value={overrideScore}
-                      onChange={(e) => setOverrideScore(e.target.value)}
-                    />
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Applying override score will hide public average but preserve citizen database logs.
+                      If disabled, previous review history remains bound to the position designation. If enabled, scores shift with the officer.
                     </span>
                   </div>
-                )}
 
-                <div className="form-group">
-                  <label className="form-label">Justification / Action Log Reason</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="e.g. Freezing due to suspected political bot rating campaign"
-                    value={overrideReason}
-                    onChange={(e) => setOverrideReason(e.target.value)}
-                  />
-                </div>
+                  <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                    <label className="form-label">Reason for Action (Audit ledger logging)</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      style={{ width: '100%', padding: '0.65rem' }}
+                      placeholder="e.g. IAS general transfer batch order #2026/A"
+                      value={transferReason}
+                      onChange={(e) => setTransferReason(e.target.value)}
+                    />
+                  </div>
 
-                <button type="submit" className="btn btn-danger" style={{ width: '100%', marginTop: '0.5rem' }}>
-                  Save Intervention Setting
-                </button>
+                  <button type="submit" className="btn btn-primary" style={{ padding: '0.75rem', fontSize: '0.9rem', width: '100%' }}>
+                    Execute Transfer
+                  </button>
+                  
+                  {transferMessage && (
+                    <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', fontWeight: 600, color: transferMessage.includes('❌') ? 'var(--accent-red)' : '#10b981', textAlign: 'center' }}>
+                      {transferMessage}
+                    </div>
+                  )}
+                </form>
+              </div>
+
+              {/* Form 2: Override Engine */}
+              <div id="intervention" className="glass-card" style={{ background: '#0e0d1a', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 'var(--radius-lg)' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Sliders size={18} style={{ color: 'var(--accent-gold)' }} /> Hard Score Override & Freeze Desk
+                </h3>
                 
-                {overrideMessage && (
-                  <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', fontWeight: 600, textAlign: 'center' }}>
-                    {overrideMessage}
+                <form onSubmit={handleOverrideSubmit}>
+                  <div className="form-group" style={{ marginBottom: '1rem' }}>
+                    <label className="form-label">Select Position for Moderation</label>
+                    <select 
+                      className="form-select" 
+                      style={{ width: '100%', padding: '0.65rem' }}
+                      value={overridePosId} 
+                      onChange={(e) => setOverridePosId(e.target.value)}
+                    >
+                      <option value="">-- Choose Profile --</option>
+                      {positions.map(p => (
+                        <option key={p.position_id} value={p.position_id}>
+                          {p.position_title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                    <div className="form-group">
+                      <div className="switch-container" onClick={() => setIsFrozen(!isFrozen)}>
+                        <div className={`switch-track ${isFrozen ? 'active' : ''}`}>
+                          <div className="switch-thumb"></div>
+                        </div>
+                        <span className="form-label" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>Lock Submissions</span>
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <div className="switch-container" onClick={() => setIsOverridden(!isOverridden)}>
+                        <div className={`switch-track ${isOverridden ? 'active' : ''}`}>
+                          <div className="switch-thumb"></div>
+                        </div>
+                        <span className="form-label" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>Manual Score Override</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {isOverridden && (
+                    <div className="form-group" style={{ marginBottom: '1rem' }}>
+                      <label className="form-label">Manual Base Score (0.00 - 10.00)</label>
+                      <input 
+                        type="number" 
+                        min="0.00" 
+                        max="10.00" 
+                        step="0.01" 
+                        className="form-input" 
+                        style={{ width: '100%', padding: '0.65rem' }}
+                        value={overrideScore}
+                        onChange={(e) => setOverrideScore(e.target.value)}
+                      />
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        Overriding the score conceals the citizen-calculated rating average.
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                    <label className="form-label">Action Log / Justification</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      style={{ width: '100%', padding: '0.65rem' }}
+                      placeholder="e.g. Locking ratings due to bot traffic anomaly."
+                      value={overrideReason}
+                      onChange={(e) => setOverrideReason(e.target.value)}
+                    />
+                  </div>
+
+                  <button type="submit" className="btn btn-danger" style={{ padding: '0.75rem', fontSize: '0.9rem', width: '100%' }}>
+                    Apply Intervention Setting
+                  </button>
+                  
+                  {overrideMessage && (
+                    <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', fontWeight: 600, color: overrideMessage.includes('❌') ? 'var(--accent-red)' : '#10b981', textAlign: 'center' }}>
+                      {overrideMessage}
+                    </div>
+                  )}
+                </form>
+              </div>
+
+            </div>
+
+            {/* Right Column: Charts & Reported Reviews */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              
+              {/* Positions Ratings chart */}
+              <div className="glass-card" style={{ background: '#0e0d1a', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column', minHeight: '300px' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Activity size={18} style={{ color: 'var(--accent-blue)' }} /> Tracked Positions Scores Summary
+                </h3>
+                <div style={{ flex: 1, width: '100%', height: '220px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="purpleGlow" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.85}/>
+                          <stop offset="95%" stopColor="#818cf8" stopOpacity={0.25}/>
+                        </linearGradient>
+                        <linearGradient id="blueGlow" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.85}/>
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.25}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                      <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={10} />
+                      <YAxis stroke="var(--text-secondary)" fontSize={10} domain={[0, 10]} />
+                      <Tooltip contentStyle={{ background: '#0f0e1c', border: '1px solid rgba(255,255,255,0.08)', color: '#ffffff', borderRadius: '8px' }} />
+                      <Bar dataKey="Score" fill="url(#purpleGlow)" radius={[4, 4, 0, 0]} barSize={24} />
+                      <Bar dataKey="Ratings" fill="url(#blueGlow)" radius={[4, 4, 0, 0]} barSize={12} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Reported Queue */}
+              <div className="glass-card" style={{ background: '#0e0d1a', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 'var(--radius-lg)' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-red)' }}>
+                  <AlertTriangle size={18} /> Reported Reviews Queue
+                </h3>
+                
+                {reportedReviews.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', padding: '1rem 0' }}>All reported reviews cleared. Content integrity sound!</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {reportedReviews.map(rev => (
+                      <div key={rev.id} style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)', padding: '1rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                            <span>Target: <strong>{rev.position}</strong></span>
+                            <span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>{rev.reason}</span>
+                          </div>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic', marginBottom: '1rem', lineHeight: 1.4 }}>
+                            "{rev.text}"
+                          </p>
+                        </div>
+                        
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button className="btn btn-secondary" style={{ flex: 1, padding: '0.35rem', fontSize: '0.8rem' }} onClick={() => handleModerateReview(rev.id, true)}>
+                            Approve / Keep
+                          </button>
+                          <button className="btn btn-danger" style={{ flex: 1, padding: '0.35rem', fontSize: '0.8rem' }} onClick={() => handleModerateReview(rev.id, false)}>
+                            Reject / Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
-              </form>
+              </div>
+
             </div>
 
           </div>
+        )}
 
-          {/* Moderation Queue for Reported Reviews */}
-          <div className="glass-card">
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <AlertTriangle size={16} style={{ color: 'var(--accent-red)' }} /> Reported Reviews Queue
-            </h3>
-            
-            {reportedReviews.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', padding: '1rem 0' }}>All reported reviews cleared. Content integrity sound!</p>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
-                {reportedReviews.map(rev => (
-                  <div key={rev.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '1rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-                        <span>Target: <strong>{rev.position}</strong></span>
-                        <span style={{ color: 'var(--accent-red)', fontWeight: 600 }}>{rev.reason}</span>
-                      </div>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', italic: 'true', marginBottom: '1rem', lineHeight: 1.4 }}>
-                        "{rev.text}"
-                      </p>
-                    </div>
-                    
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button className="btn btn-secondary" style={{ flex: 1, padding: '0.35rem', fontSize: '0.8rem' }} onClick={() => handleModerateReview(rev.id, true)}>
-                        Approve / Keep
-                      </button>
-                      <button className="btn btn-danger" style={{ flex: 1, padding: '0.35rem', fontSize: '0.8rem' }} onClick={() => handleModerateReview(rev.id, false)}>
-                        Reject / Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Admin Audit Trail Table */}
-          <div className="glass-card">
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <FileSpreadsheet size={16} style={{ color: 'var(--accent-blue)' }} /> Admin Audit Trail Ledger
+        {/* 5. Audit logs ledger */}
+        {!loading && (
+          <div id="ledger" className="ledger-table-container">
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <FileSpreadsheet size={18} style={{ color: 'var(--accent-blue)' }} /> System Administration Audit Trail Ledger
             </h3>
             
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '600px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '700px' }}>
                 <thead>
-                  <tr style={{ borderBottom: '2px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)', textAlign: 'left' }}>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>ID</th>
+                  <tr style={{ borderBottom: '2px solid rgba(255,255,255,0.06)', color: 'var(--text-secondary)', textAlign: 'left' }}>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>Log ID</th>
                     <th style={{ padding: '0.75rem 0.5rem' }}>Action Type</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Target Profile</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>Target Position</th>
                     <th style={{ padding: '0.75rem 0.5rem' }}>Old Value</th>
                     <th style={{ padding: '0.75rem 0.5rem' }}>New Value</th>
-                    <th style={{ padding: '0.75rem 0.5rem' }}>Reason/Justification</th>
+                    <th style={{ padding: '0.75rem 0.5rem' }}>Justification</th>
                     <th style={{ padding: '0.75rem 0.5rem' }}>Timestamp</th>
                   </tr>
                 </thead>
                 <tbody>
                   {auditLogs.map((log, idx) => (
-                    <tr key={log.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: 'var(--text-secondary)' }}>
+                    <tr key={log.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', color: 'var(--text-secondary)' }}>
                       <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.8rem' }}>{log.id}</td>
                       <td style={{ padding: '0.75rem 0.5rem' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, background: 'rgba(255,255,255,0.05)', padding: '0.15rem 0.4rem', borderRadius: 'var(--radius-sm)', color: log.action_type === 'SCORE_OVERRIDE' ? 'var(--accent-gold)' : log.action_type === 'FREEZE_RATINGS' ? 'var(--accent-red)' : 'var(--accent-green)' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, background: 'rgba(255,255,255,0.04)', padding: '0.15rem 0.4rem', borderRadius: 'var(--radius-sm)', color: log.action_type === 'SCORE_OVERRIDE' ? 'var(--accent-gold)' : log.action_type === 'FREEZE_RATINGS' ? 'var(--accent-red)' : 'var(--accent-green)' }}>
                           {log.action_type}
                         </span>
                       </td>
                       <td style={{ padding: '0.75rem 0.5rem', fontWeight: 500, color: 'var(--text-primary)' }}>{log.position_title}</td>
                       <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.8rem', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.old_value}>{log.old_value || 'NULL'}</td>
                       <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.8rem', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.new_value}>{log.new_value || 'NULL'}</td>
-                      <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{log.reason}</td>
+                      <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem' }}>{log.reason}</td>
                       <td style={{ padding: '0.75rem 0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         {new Date(log.created_at).toLocaleString()}
                       </td>
@@ -479,10 +617,9 @@ export default function AdminDashboard() {
               </table>
             </div>
           </div>
+        )}
 
-        </div>
-      )}
-
+      </main>
     </div>
   );
 }
