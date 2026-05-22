@@ -136,22 +136,51 @@ export default function AdminDashboard() {
     ]);
 
     try {
-      const res = await db.triggerSkdAgent('all');
-      const doneTime = new Date().toLocaleTimeString();
+      let completedCount = 0;
+      let failedCount = 0;
       
-      if (res.success) {
+      for (let i = 0; i < pendingPositions.length; i++) {
+        const pos = pendingPositions[i];
+        
         setAgentLogs(prev => [
-          `[${doneTime}] 🎉 Batch execution complete!`,
-          `[${doneTime}] 📈 Summary: ${res.completed} completed successfully, ${res.failed} failed.`,
+          `[${new Date().toLocaleTimeString()}] ⏳ Processing ${i + 1}/${pendingPositions.length}: ${pos.position_title}...`,
           ...prev
         ]);
-        loadData();
-      } else {
-        setAgentLogs(prev => [
-          `[${doneTime}] ❌ Batch run stopped: ${res.error}`,
-          ...prev
-        ]);
+        
+        const res = await db.triggerSkdAgent(pos.position_id);
+        
+        if (res && res.success) {
+          completedCount++;
+          setAgentLogs(prev => [
+            `[${new Date().toLocaleTimeString()}] ✅ Success: ${pos.position_title} (Score: ${res.skd_overall_score})`,
+            ...prev
+          ]);
+        } else {
+          failedCount++;
+          setAgentLogs(prev => [
+            `[${new Date().toLocaleTimeString()}] ❌ Failed: ${pos.position_title} - ${res?.error || 'Timeout'}`,
+            ...prev
+          ]);
+        }
+        
+        // Reload data occasionally to reflect progress in the UI
+        if ((i + 1) % 5 === 0) {
+          loadData();
+        }
+        
+        // Wait 1.5s between requests to respect rate limits
+        if (i < pendingPositions.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
       }
+      
+      const doneTime = new Date().toLocaleTimeString();
+      setAgentLogs(prev => [
+        `[${doneTime}] 🎉 Batch execution complete!`,
+        `[${doneTime}] 📈 Summary: ${completedCount} completed successfully, ${failedCount} failed.`,
+        ...prev
+      ]);
+      loadData();
     } catch (err) {
       setAgentLogs(prev => [
         `[${new Date().toLocaleTimeString()}] ❌ Batch network error: ${err.message}`,
