@@ -18,7 +18,9 @@ import {
   Search,
   Bell,
   Settings,
-  Compass
+  Compass,
+  Bot,
+  Sparkles
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -61,6 +63,94 @@ export default function AdminDashboard() {
   // Live Anomaly & Moderation Queue
   const [anomalies, setAnomalies] = useState([]);
   const [reportedReviews, setReportedReviews] = useState([]);
+
+  // SKD AI Agent Control Center States
+  const [agentLogs, setAgentLogs] = useState([
+    '🤖 System initialized: SKD Agent Hub ready.',
+    '🔌 Grounding engine status: Connected to Google Search.',
+    '⚡ Model footprint: skd-flash-2.0 selected.'
+  ]);
+  const [runningBatch, setRunningBatch] = useState(false);
+  const [runningSingleId, setRunningSingleId] = useState(null);
+
+  // Trigger Gemini web search analysis for a single position
+  const triggerSingleAgent = async (posId, title, officialName) => {
+    if (runningSingleId || runningBatch) return;
+    
+    setRunningSingleId(posId);
+    const timestamp = new Date().toLocaleTimeString();
+    setAgentLogs(prev => [
+      `[${timestamp}] 🔍 Initiating agent run for ${title} (${officialName})...`,
+      `[${timestamp}] 📡 Crawling public record: "${officialName} ${title.split(';')[0]} India performance"...`,
+      ...prev
+    ]);
+
+    try {
+      const res = await db.triggerSkdAgent(posId);
+      const doneTime = new Date().toLocaleTimeString();
+      
+      if (res.success) {
+        setAgentLogs(prev => [
+          `[${doneTime}] ✅ Analysis completed successfully for ${title}!`,
+          `[${doneTime}] 📊 Overall AI Score: ${res.skd_overall_score.toFixed(2)} (Int: ${res.score_integrity.toFixed(1)}, Eff: ${res.score_efficiency.toFixed(1)}, Acc: ${res.score_accessibility.toFixed(1)})`,
+          `[${doneTime}] 🌐 Retrieved sources: ${res.sources.length} links matched.`,
+          ...prev
+        ]);
+        loadData(); // Reload directory state
+      } else {
+        setAgentLogs(prev => [
+          `[${doneTime}] ❌ Failed to complete analysis: ${res.error || 'SKD connection timeout'}`,
+          ...prev
+        ]);
+      }
+    } catch (err) {
+      setAgentLogs(prev => [
+        `[${new Date().toLocaleTimeString()}] ❌ Network error: ${err.message}`,
+        ...prev
+      ]);
+    } finally {
+      setRunningSingleId(null);
+    }
+  };
+
+  // Trigger Gemini web search analysis for all positions
+  const triggerBatchAgent = async () => {
+    if (runningBatch || runningSingleId) return;
+    
+    setRunningBatch(true);
+    const timestamp = new Date().toLocaleTimeString();
+    setAgentLogs(prev => [
+      `[${timestamp}] 🤖 Starting batch run for all ${positions.length} active positions...`,
+      `[${timestamp}] ⏳ Processing sequentially to respect API rate limits...`,
+      ...prev
+    ]);
+
+    try {
+      const res = await db.triggerSkdAgent('all');
+      const doneTime = new Date().toLocaleTimeString();
+      
+      if (res.success) {
+        setAgentLogs(prev => [
+          `[${doneTime}] 🎉 Batch execution complete!`,
+          `[${doneTime}] 📈 Summary: ${res.completed} completed successfully, ${res.failed} failed.`,
+          ...prev
+        ]);
+        loadData();
+      } else {
+        setAgentLogs(prev => [
+          `[${doneTime}] ❌ Batch run stopped: ${res.error}`,
+          ...prev
+        ]);
+      }
+    } catch (err) {
+      setAgentLogs(prev => [
+        `[${new Date().toLocaleTimeString()}] ❌ Batch network error: ${err.message}`,
+        ...prev
+      ]);
+    } finally {
+      setRunningBatch(false);
+    }
+  };
 
   // Data Loading
   const loadData = async () => {
@@ -229,12 +319,19 @@ export default function AdminDashboard() {
           >
             <Sliders size={16} /> <span style={{ marginLeft: '8px' }}>Interventions</span>
           </button>
-          <button 
+           <button 
             onClick={() => setActiveTab('ledger')} 
             className={`sidebar-link ${activeTab === 'ledger' ? 'active' : ''}`}
             style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
           >
             <FileSpreadsheet size={16} /> <span style={{ marginLeft: '8px' }}>Audit Trail</span>
+          </button>
+          <button 
+            onClick={() => setActiveTab('ai-agent')} 
+            className={`sidebar-link ${activeTab === 'ai-agent' ? 'active' : ''}`}
+            style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#a78bfa' }}
+          >
+            <Bot size={16} style={{ color: '#a78bfa' }} /> <span style={{ marginLeft: '8px', fontWeight: 600 }}>AI Rating Agent</span>
           </button>
         </nav>
 
@@ -256,11 +353,11 @@ export default function AdminDashboard() {
         <div className="admin-top-nav">
           <div className="admin-search-bar">
             <Search size={14} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            {activeTab === 'directory' ? (
+            {activeTab === 'directory' || activeTab === 'ai-agent' ? (
               <input 
                 type="text" 
                 className="admin-search-input" 
-                placeholder="Search live positions..." 
+                placeholder="Search positions..." 
                 value={directorySearch}
                 onChange={(e) => setDirectorySearch(e.target.value)}
               />
@@ -774,6 +871,144 @@ export default function AdminDashboard() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+
+            {/* TABS 5: AI Rating Agent Control Center */}
+            {activeTab === 'ai-agent' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                
+                {/* 1. Header controls section */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '2rem' }} className="admin-grid-two-col">
+                  
+                  {/* Status overview & trigger */}
+                  <div className="glass-card" style={{ background: '#0e0d1a', border: '1px solid rgba(167, 139, 250, 0.15)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '240px' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                        <Bot size={22} style={{ color: '#a78bfa' }} />
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>Sarkardada AI Agent Core</h3>
+                      </div>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
+                        This agent orchestrates deep web crawls of active government personnel to establish automated ratings (Integrity, Efficiency, Public Accessibility) based on verified real-world outputs, judicial reviews, news transcripts, and official portals.
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                      <button 
+                        onClick={triggerBatchAgent}
+                        className="btn" 
+                        disabled={runningBatch || runningSingleId}
+                        style={{ background: 'linear-gradient(135deg, #a78bfa, #8b5cf6)', color: '#ffffff', border: 'none', padding: '0.75rem 1.5rem', fontSize: '0.9rem', fontWeight: 700, borderRadius: 'var(--radius-md)', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: (runningBatch || runningSingleId) ? 'not-allowed' : 'pointer', opacity: (runningBatch || runningSingleId) ? 0.6 : 1, transition: 'all 0.2s ease', boxShadow: '0 4px 15px rgba(167, 139, 250, 0.3)' }}
+                      >
+                        <Sparkles size={16} /> 
+                        {runningBatch ? 'Batch Evaluating...' : 'Run Whole Directory Evaluation'}
+                      </button>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Engine:</span>
+                        <strong style={{ fontSize: '0.8rem', color: '#a78bfa' }}>SKD Flash 2.0 grounded</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Logs Console */}
+                  <div className="glass-card" style={{ background: '#08080f', border: '1px solid rgba(255,255,255,0.03)', borderRadius: 'var(--radius-lg)', padding: '1.2rem', display: 'flex', flexDirection: 'column', height: '240px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 700 }}>
+                        Real-time Crawler Logs
+                      </span>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: (runningBatch || runningSingleId) ? '#a78bfa' : 'var(--text-muted)', display: 'inline-block', boxShadow: (runningBatch || runningSingleId) ? '0 0 10px #a78bfa' : 'none' }}></span>
+                    </div>
+
+                    <div style={{ flex: 1, overflowY: 'auto', fontFamily: 'monospace', fontSize: '0.75rem', color: '#a78bfa', display: 'flex', flexDirection: 'column', gap: '0.35rem', paddingRight: '0.25rem' }}>
+                      {agentLogs.map((log, idx) => (
+                        <div key={idx} style={{ lineBreak: 'anywhere', opacity: idx === 0 ? 1 : 0.65 }}>
+                          {log}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* 2. Position Matrix list */}
+                <div className="glass-card" style={{ background: '#0e0d1a', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 'var(--radius-lg)', padding: '1.5rem' }}>
+                  <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1.25rem' }}>Directory AI Matrix Status</h4>
+                  
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '750px' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid rgba(255,255,255,0.06)', color: 'var(--text-secondary)', textAlign: 'left' }}>
+                          <th style={{ padding: '0.75rem 0.5rem' }}>Office / Desk</th>
+                          <th style={{ padding: '0.75rem 0.5rem' }}>Incumbent</th>
+                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>SKD Rating</th>
+                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>Integrity</th>
+                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>Efficiency</th>
+                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>Accessibility</th>
+                          <th style={{ padding: '0.75rem 0.5rem' }}>Status</th>
+                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredPositions.map((p) => {
+                          const isCurrentlyRunning = runningSingleId === p.position_id;
+                          const hasRating = p.skd_rating !== null && p.skd_rating !== undefined;
+
+                          return (
+                            <tr key={p.position_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', color: 'var(--text-secondary)' }}>
+                              <td style={{ padding: '0.75rem 0.5rem', fontWeight: 600, color: '#ffffff' }}>
+                                {p.position_title}
+                              </td>
+                              <td style={{ padding: '0.75rem 0.5rem' }}>
+                                {p.current_official_name}
+                              </td>
+                              <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: typeof p.skd_rating === 'number' ? '#a78bfa' : 'var(--text-muted)', background: typeof p.skd_rating === 'number' ? 'rgba(167, 139, 250, 0.08)' : 'rgba(255,255,255,0.02)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                                  {typeof p.skd_rating === 'number' ? p.skd_rating.toFixed(2) : '—'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center', fontSize: '0.8rem' }}>
+                                {typeof p.skd_integrity === 'number' ? p.skd_integrity.toFixed(1) : '—'}
+                              </td>
+                              <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center', fontSize: '0.8rem' }}>
+                                {typeof p.skd_efficiency === 'number' ? p.skd_efficiency.toFixed(1) : '—'}
+                              </td>
+                              <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center', fontSize: '0.8rem' }}>
+                                {typeof p.skd_accessibility === 'number' ? p.skd_accessibility.toFixed(1) : '—'}
+                              </td>
+                              <td style={{ padding: '0.75rem 0.5rem' }}>
+                                {isCurrentlyRunning ? (
+                                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#a78bfa', animation: 'pulse 1.5s infinite' }}>
+                                    ⏳ Running Agent
+                                  </span>
+                                ) : hasRating ? (
+                                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-green)' }}>
+                                    ✓ Grounded
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                    Pending Run
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
+                                <button
+                                  onClick={() => triggerSingleAgent(p.position_id, p.position_title, p.current_official_name)}
+                                  className="btn btn-secondary"
+                                  disabled={runningBatch || runningSingleId !== null}
+                                  style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', border: '1px solid rgba(167, 139, 250, 0.2)', color: '#a78bfa', background: 'transparent', cursor: (runningBatch || runningSingleId !== null) ? 'not-allowed' : 'pointer' }}
+                                >
+                                  <Bot size={12} /> Analyze Desk
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
               </div>
             )}
 
