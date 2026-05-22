@@ -117,10 +117,20 @@ export default function AdminDashboard() {
   const triggerBatchAgent = async () => {
     if (runningBatch || runningSingleId) return;
     
+    const pendingPositions = positions.filter(p => !p.skd_status || p.skd_status !== 'completed');
+    
+    if (pendingPositions.length === 0) {
+      setAgentLogs(prev => [
+        `[${new Date().toLocaleTimeString()}] 🎉 All results grounded. No pending evaluations found.`,
+        ...prev
+      ]);
+      return;
+    }
+
     setRunningBatch(true);
     const timestamp = new Date().toLocaleTimeString();
     setAgentLogs(prev => [
-      `[${timestamp}] 🤖 Starting batch run for all ${positions.length} active positions...`,
+      `[${timestamp}] 🤖 Starting batch run for ${pendingPositions.length} pending positions...`,
       `[${timestamp}] ⏳ Processing sequentially to respect API rate limits...`,
       ...prev
     ]);
