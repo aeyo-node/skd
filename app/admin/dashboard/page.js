@@ -168,9 +168,18 @@ export default function AdminDashboard() {
           loadData();
         }
         
-        // Wait 1.5s between requests to respect rate limits
+        // Stop the batch automatically if we hit a hard Quota/429 error
+        if (res && !res.success && res.error && res.error.includes('429')) {
+          setAgentLogs(prev => [
+            `[${new Date().toLocaleTimeString()}] 🛑 Batch stopped automatically: Gemini Free Tier Quota Exceeded.`,
+            ...prev
+          ]);
+          break; // Exit the loop
+        }
+
+        // Wait 5 seconds between requests to ensure we stay under the 15 Requests Per Minute (RPM) free tier limit
         if (i < pendingPositions.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1500));
+          await new Promise(resolve => setTimeout(resolve, 5000));
         }
       }
       
