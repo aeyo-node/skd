@@ -993,7 +993,9 @@ export default function SearchGrid() {
                             {idx + 1}
                           </span>
                           <span style={{ fontWeight: 600, color: '#a78bfa' }}>{label}</span>
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>— {domain}</span>
+                          {domain && !domain.includes('vertex') && (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>— {domain}</span>
+                          )}
                         </span>
                         <ExternalLink size={12} style={{ color: '#a78bfa' }} />
                       </a>
