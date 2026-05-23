@@ -680,7 +680,11 @@ export default function SearchGrid() {
                     </div>
 
                     {/* User Citizen Rating */}
-                    <div style={{ flex: 1, background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.15)', borderRadius: 'var(--radius-sm)', padding: '0.6rem', textAlign: 'center' }}>
+                    <div 
+                      style={{ flex: 1, background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.15)', borderRadius: 'var(--radius-sm)', padding: '0.6rem', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                      onClick={() => openRateModal(pos)}
+                      title="Click to view citizen reviews and ratings"
+                    >
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', fontSize: '0.65rem', color: 'var(--accent-blue)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
                         <User size={10} /> User Rating
                       </div>

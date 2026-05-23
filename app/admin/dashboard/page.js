@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { db } from '../../../lib/db';
 import { 
   ShieldAlert, 
@@ -37,6 +38,17 @@ export default function AdminDashboard() {
   const [officials, setOfficials] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  // Authentication check
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isAuth = localStorage.getItem('skd_admin_auth');
+      if (isAuth !== 'true') {
+        router.push('/admin');
+      }
+    }
+  }, [router]);
 
   // Tab State
   const [activeTab, setActiveTab] = useState('overview');
