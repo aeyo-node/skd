@@ -1150,13 +1150,162 @@ export default function SearchGrid() {
               </div>
             </div>
 
-            {/* Assessment Rationale Card */}
-            <div style={{ background: 'rgba(255, 255, 255, 0.01)', border: '1px solid rgba(255, 255, 255, 0.03)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginBottom: '2rem' }}>
-              <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>Basis of AI Evaluation</h4>
-              <p style={{ fontSize: '0.925rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
-                {skdAnalysisTarget.skd_summary || 'No detailed analysis summary was generated.'}
-              </p>
-            </div>
+            {/* Assessment Rationale Card - Agent Version 2 Dynamic Layout */}
+            {(() => {
+              let parsedSummary = null;
+              try {
+                parsedSummary = JSON.parse(skdAnalysisTarget.skd_summary);
+              } catch (e) {
+                // Not JSON, fallback to legacy string
+              }
+
+              if (parsedSummary && typeof parsedSummary === 'object') {
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '2rem' }}>
+                    
+                    {/* Glassmorphic TL;DR Verdict Card */}
+                    <div style={{
+                      background: 'linear-gradient(135deg, rgba(167, 139, 250, 0.08) 0%, rgba(139, 92, 246, 0.02) 100%)',
+                      border: '1px solid rgba(167, 139, 250, 0.15)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '1.25rem',
+                      boxShadow: '0 4px 20px rgba(139, 92, 246, 0.03)',
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '4px',
+                        height: '100%',
+                        background: 'linear-gradient(180deg, #a78bfa, #8b5cf6)'
+                      }} />
+                      <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#a78bfa', fontWeight: 700, margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Sparkles size={12} /> Citizen Verdict
+                      </h4>
+                      <p style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.5, margin: '0 0 1rem 0' }}>
+                        {parsedSummary.verdict}
+                      </p>
+                      
+                      {/* Identity Tags */}
+                      {parsedSummary.identity_tags && parsedSummary.identity_tags.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          {parsedSummary.identity_tags.map((tag, idx) => {
+                            const colors = [
+                              { bg: 'rgba(167, 139, 250, 0.08)', border: 'rgba(167, 139, 250, 0.2)', text: '#c084fc' },
+                              { bg: 'rgba(20, 184, 166, 0.08)', border: 'rgba(20, 184, 166, 0.2)', text: '#2dd4bf' },
+                              { bg: 'rgba(245, 158, 11, 0.08)', border: 'rgba(245, 158, 11, 0.2)', text: '#fbbf24' }
+                            ];
+                            const style = colors[idx % colors.length];
+                            return (
+                              <span key={idx} style={{
+                                fontSize: '0.725rem',
+                                fontWeight: 700,
+                                background: style.bg,
+                                border: `1px solid ${style.border}`,
+                                color: style.text,
+                                padding: '0.2rem 0.6rem',
+                                borderRadius: '100px',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.02em',
+                                boxShadow: `0 0 8px ${style.bg}`
+                              }}>
+                                #{tag.replace('#', '')}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Split Grid for Achievements vs Drawbacks */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                      
+                      {/* Emerald Card - Major Works & Achievements */}
+                      <div style={{
+                        background: 'rgba(16, 185, 129, 0.02)',
+                        border: '1px solid rgba(16, 185, 129, 0.12)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '1.25rem',
+                        boxShadow: '0 4px 15px rgba(16, 185, 129, 0.01)'
+                      }}>
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#34d399', margin: '0 0 0.85rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          🚀 Major Works & Achievements
+                        </h4>
+                        {parsedSummary.key_works && parsedSummary.key_works.length > 0 ? (
+                          <ul style={{ paddingLeft: '1.2rem', margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                            {parsedSummary.key_works.map((work, idx) => (
+                              <li key={idx} style={{ marginBottom: '0.5rem', listStyleType: 'disc' }}>
+                                {work}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, fontStyle: 'italic' }}>
+                            No specific outstanding works documented in public records.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Amber Card - Key Concerns & Drawbacks */}
+                      <div style={{
+                        background: 'rgba(245, 158, 11, 0.02)',
+                        border: '1px solid rgba(245, 158, 11, 0.12)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '1.25rem',
+                        boxShadow: '0 4px 15px rgba(245, 158, 11, 0.01)'
+                      }}>
+                        <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fbbf24', margin: '0 0 0.85rem 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          ⚠️ Concerns & Drawbacks
+                        </h4>
+                        {parsedSummary.drawbacks && parsedSummary.drawbacks.length > 0 ? (
+                          <ul style={{ paddingLeft: '1.2rem', margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                            {parsedSummary.drawbacks.map((drawback, idx) => (
+                              <li key={idx} style={{ marginBottom: '0.5rem', listStyleType: 'disc' }}>
+                                {drawback}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, fontStyle: 'italic' }}>
+                            No major controversies, vigilance cases, or legal issues identified.
+                          </p>
+                        )}
+                      </div>
+
+                    </div>
+
+                    {/* Common Citizen's Takeaway Card */}
+                    <div style={{
+                      background: 'rgba(255, 255, 255, 0.01)',
+                      border: '1px solid rgba(255, 255, 255, 0.03)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '1.15rem 1.25rem',
+                      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.02)'
+                    }}>
+                      <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 0.4rem 0', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        💡 Citizen Takeaway (TL;DR)
+                      </h4>
+                      <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                        {parsedSummary.citizen_takeaway}
+                      </p>
+                    </div>
+
+                  </div>
+                );
+              }
+
+              // Fallback to legacy plain string
+              return (
+                <div style={{ background: 'rgba(255, 255, 255, 0.01)', border: '1px solid rgba(255, 255, 255, 0.03)', borderRadius: 'var(--radius-md)', padding: '1.25rem', marginBottom: '2rem' }}>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>Basis of AI Evaluation</h4>
+                  <p style={{ fontSize: '0.925rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                    {skdAnalysisTarget.skd_summary || 'No detailed analysis summary was generated.'}
+                  </p>
+                </div>
+              );
+            })()}
 
             {/* Evidence & Grounding Sources */}
             <div style={{ marginBottom: '1.5rem' }}>
