@@ -74,6 +74,77 @@ const getSourceLabel = (url, index) => {
   }
 };
 
+const getInitials = (name) => {
+  if (!name) return '??';
+  const prefixes = [
+    'shri', 'smt', 'smt.', 'mr', 'mr.', 'mrs', 'mrs.', 'ms', 'ms.', "hon'ble", 'honble',
+    'justice', 'admiral', 'prof.', 'prof', 'thiru', 'sri', 'sri.', 'sushri'
+  ];
+  let tokens = name.trim().split(/\s+/);
+  tokens = tokens.filter(tok => !prefixes.includes(tok.toLowerCase()));
+  if (tokens.length === 0) return '??';
+  if (tokens.length === 1) return tokens[0].substring(0, 2).toUpperCase();
+  return (tokens[0][0] + tokens[tokens.length - 1][0]).toUpperCase();
+};
+
+const getGradientStyle = (name) => {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const h1 = Math.abs(hash % 360);
+  const h2 = (h1 + 40) % 360;
+  return {
+    background: `linear-gradient(135deg, hsl(${h1}, 75%, 45%), hsl(${h2}, 80%, 35%))`,
+    color: '#ffffff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: '700',
+    textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: '50%'
+  };
+};
+
+function OfficialAvatar({ imageUrl, name, size = 60 }) {
+  const initials = getInitials(name);
+  const gradientStyle = getGradientStyle(name);
+  
+  if (imageUrl) {
+    return (
+      <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.1)', flexShrink: 0, position: 'relative' }}>
+        <img 
+          src={imageUrl} 
+          alt={name} 
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          onError={(e) => {
+            e.target.style.display = 'none';
+            e.target.parentNode.style.background = gradientStyle.background;
+            e.target.parentNode.innerHTML = `<span style="font-weight: 700; color: #fff; font-size: ${size * 0.38}px; letter-spacing: 0.05em; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">${initials}</span>`;
+          }}
+        />
+      </div>
+    );
+  }
+  
+  return (
+    <div style={{ ...gradientStyle, width: size, height: size, border: '2px solid rgba(255,255,255,0.15)', flexShrink: 0 }}>
+      <div style={{ 
+        position: 'absolute', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0, 
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 100%)',
+        pointerEvents: 'none'
+      }} />
+      <span style={{ fontSize: `${size * 0.38}px`, letterSpacing: '0.05em' }}>{initials}</span>
+    </div>
+  );
+}
+
 function PortfolioDropdown({ remaining }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -132,6 +203,7 @@ export default function SearchGrid() {
   const [loading, setLoading] = useState(true);
   const [allPositions, setAllPositions] = useState([]);
   const [filteredPositions, setFilteredPositions] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -311,6 +383,11 @@ export default function SearchGrid() {
 
     setFilteredPositions(result);
   }, [searchQuery, geoTier, selectedState, selectedDistrict, selectedDept, selectedCadre, statusFilter, allPositions]);
+
+  // Reset page to 1 when filters or search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, geoTier, selectedState, selectedDistrict, selectedDept, selectedCadre, statusFilter]);
 
   // Open review modal and fetch existing reviews
   const openRateModal = async (pos) => {
@@ -595,133 +672,260 @@ export default function SearchGrid() {
           </button>
         </div>
       ) : (
-        <div>
-          <div style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-            Showing <strong>{filteredPositions.length}</strong> accountability listings
-          </div>
+        (() => {
+          const ITEMS_PER_PAGE = 12;
+          const totalPages = Math.ceil(filteredPositions.length / ITEMS_PER_PAGE);
           
-          <div className="grid-cards-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
-            {filteredPositions.map(pos => {
-              const rating = pos.display_rating;
-              const hasRating = rating !== null;
-              const { main, remaining } = parsePortfolios(pos.position_title);
-              
-              return (
-                <div key={pos.position_id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: pos.is_overridden ? `4px solid var(--accent-blue)` : '1px solid var(--border-color)' }}>
-                  
-                  <div>
-                    {/* Header: Title and Status flags */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                      <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', tracking: '0.05em', color: 'var(--text-muted)', fontWeight: 600 }}>
-                        {pos.tier} Level
-                      </span>
-                      
-                      <div style={{ display: 'flex', gap: '0.35rem' }}>
-                        {pos.is_overridden && (
-                          <span title="Rating moderated by administrator" style={{ background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-blue)', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: 'var(--radius-sm)', padding: '0.15rem 0.4rem', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '0.15rem', fontWeight: 600 }}>
-                            <CheckCircle size={10} /> MODERATED
-                          </span>
-                        )}
-                        {pos.is_frozen && (
-                          <span title="Public voting is currently locked" style={{ background: 'rgba(239, 68, 68, 0.15)', color: 'var(--accent-red)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 'var(--radius-sm)', padding: '0.15rem 0.4rem', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '0.15rem', fontWeight: 600 }}>
-                            <Lock size={10} /> FROZEN
-                          </span>
-                        )}
-                      </div>
-                    </div>
+          const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+          const currentPageItems = filteredPositions.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-                    {/* Position Title */}
-                    <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.5rem', lineHeight: 1.3 }}>{main}</h3>
-                    
-                    {remaining.length > 0 && (
-                      <PortfolioDropdown remaining={remaining} />
-                    )}
-                    
-                    {/* Department and Location */}
-                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.5rem' }}>
-                      <Briefcase size={12} style={{ flexShrink: 0 }} /> {pos.department_name}
-                    </p>
-                    
-                    {(pos.state_name || pos.district_name) && (
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '1rem' }}>
-                        <MapPin size={12} /> {pos.district_name ? `${pos.district_name}, ` : ''}{pos.state_name}
-                      </p>
-                    )}
-
-                    {/* Official Info */}
-                    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 'var(--radius-sm)', padding: '0.75rem', marginBottom: '1.25rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                        <User size={14} style={{ color: 'var(--text-muted)' }} />
-                        <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{pos.current_official_name}</span>
-                      </div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', paddingLeft: '1.25rem' }}>
-                        Cadre: <strong>{pos.service_cadre}</strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Dual Rating Display */}
-                  <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                    {/* SKD AI Rating */}
-                    <div 
-                      style={{ flex: 1, background: 'rgba(167, 139, 250, 0.06)', border: '1px solid rgba(167, 139, 250, 0.15)', borderRadius: 'var(--radius-sm)', padding: '0.6rem', textAlign: 'center', cursor: typeof pos.skd_rating === 'number' ? 'pointer' : 'default', transition: 'all 0.2s ease' }}
-                      onClick={() => typeof pos.skd_rating === 'number' && setSkdAnalysisTarget(pos)}
-                      title={typeof pos.skd_rating === 'number' ? 'Click to view AI analysis' : 'AI rating not yet generated'}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', fontSize: '0.65rem', color: '#a78bfa', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
-                        <Bot size={10} /> SKD Rating
-                      </div>
-                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: typeof pos.skd_rating === 'number' ? '#a78bfa' : 'var(--text-muted)' }}>
-                        {typeof pos.skd_rating === 'number' ? pos.skd_rating.toFixed(2) : '—'}
-                      </div>
-                      <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
-                        {pos.skd_status === 'running' ? '⏳ Analyzing...' : typeof pos.skd_rating === 'number' ? 'AI Verified' : 'Pending'}
-                      </div>
-                    </div>
-
-                    {/* User Citizen Rating */}
-                    <div 
-                      style={{ flex: 1, background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.15)', borderRadius: 'var(--radius-sm)', padding: '0.6rem', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s ease' }}
-                      onClick={() => openRateModal(pos)}
-                      title="Click to view citizen reviews and ratings"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', fontSize: '0.65rem', color: 'var(--accent-blue)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
-                        <User size={10} /> User Rating
-                      </div>
-                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: hasRating ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
-                        {hasRating ? rating.toFixed(2) : '—'}
-                      </div>
-                      <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
-                        {pos.total_ratings_count} {pos.total_ratings_count === 1 ? 'review' : 'reviews'}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Actions Footer */}
-                  <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: '0.25rem' }}>
-                    {pos.skd_rating !== null && (
-                      <button 
-                        className="btn btn-secondary" 
-                        style={{ flex: 1, padding: '0.4rem 0.5rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
-                        onClick={() => setSkdAnalysisTarget(pos)}
-                      >
-                        <Sparkles size={12} /> AI Analysis
-                      </button>
-                    )}
-                    <button 
-                      className={`btn ${pos.is_frozen ? 'btn-secondary' : 'btn-primary'}`} 
-                      style={{ flex: 1, padding: '0.4rem 0.5rem', fontSize: '0.8rem' }}
-                      onClick={() => openRateModal(pos)}
-                    >
-                      {pos.is_frozen ? 'View Reviews' : 'Rate / Review'}
-                    </button>
-                  </div>
-
+          return (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', gap: '1rem', flexWrap: 'wrap' }}>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                  Showing <strong>{filteredPositions.length}</strong> accountability listings
                 </div>
-              );
-            })}
-          </div>
-        </div>
+              </div>
+              
+              {currentPageItems.length === 0 ? (
+                <div className="glass-card" style={{ textAlign: 'center', padding: '3rem 1.5rem', color: 'var(--text-secondary)' }}>
+                  <HelpCircle size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem' }} />
+                  <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>No Profiles Found</h4>
+                  <p style={{ marginTop: '0.35rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    No listings are available on this page.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid-cards-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
+                  {currentPageItems.map(pos => {
+                    const rating = pos.display_rating;
+                    const hasRating = rating !== null;
+                    const { main, remaining } = parsePortfolios(pos.position_title);
+                    
+                    return (
+                      <div key={pos.position_id} className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderLeft: pos.is_overridden ? `4px solid var(--accent-blue)` : '1px solid var(--border-color)' }}>
+                        
+                        <div>
+                          {/* Header: Title and Status flags */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                            <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', tracking: '0.05em', color: 'var(--text-muted)', fontWeight: 600 }}>
+                              {pos.tier} Level
+                            </span>
+                            
+                            <div style={{ display: 'flex', gap: '0.35rem' }}>
+                              {pos.is_overridden && (
+                                <span title="Rating moderated by administrator" style={{ background: 'rgba(59, 130, 246, 0.15)', color: 'var(--accent-blue)', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: 'var(--radius-sm)', padding: '0.15rem 0.4rem', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '0.15rem', fontWeight: 600 }}>
+                                  <CheckCircle size={10} /> MODERATED
+                                </span>
+                              )}
+                              {pos.is_frozen && (
+                                <span title="Public voting is currently locked" style={{ background: 'rgba(239, 68, 68, 0.15)', color: 'var(--accent-red)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 'var(--radius-sm)', padding: '0.15rem 0.4rem', fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '0.15rem', fontWeight: 600 }}>
+                                  <Lock size={10} /> FROZEN
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Position Title */}
+                          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.5rem', lineHeight: 1.3 }}>{main}</h3>
+                          
+                          {remaining.length > 0 && (
+                            <PortfolioDropdown remaining={remaining} />
+                          )}
+                          
+                          {/* Department and Location */}
+                          <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.5rem' }}>
+                            <Briefcase size={12} style={{ flexShrink: 0 }} /> {pos.department_name}
+                          </p>
+                          
+                          {(pos.state_name || pos.district_name) && (
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '1rem' }}>
+                              <MapPin size={12} /> {pos.district_name ? `${pos.district_name}, ` : ''}{pos.state_name}
+                            </p>
+                          )}
+
+                          {/* Official Info with Glassmorphic Avatar */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 'var(--radius-sm)', padding: '0.75rem', marginBottom: '1.25rem' }}>
+                            <OfficialAvatar imageUrl={pos.image_url} name={pos.current_official_name} size={48} />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                              <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>{pos.current_official_name}</span>
+                              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                Cadre: <strong>{pos.service_cadre}</strong>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Dual Rating Display */}
+                        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                          {/* SKD AI Rating */}
+                          <div 
+                            style={{ flex: 1, background: 'rgba(167, 139, 250, 0.06)', border: '1px solid rgba(167, 139, 250, 0.15)', borderRadius: 'var(--radius-sm)', padding: '0.6rem', textAlign: 'center', cursor: typeof pos.skd_rating === 'number' ? 'pointer' : 'default', transition: 'all 0.2s ease' }}
+                            onClick={() => typeof pos.skd_rating === 'number' && setSkdAnalysisTarget(pos)}
+                            title={typeof pos.skd_rating === 'number' ? 'Click to view AI analysis' : 'AI rating not yet generated'}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', fontSize: '0.65rem', color: '#a78bfa', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+                              <Bot size={10} /> SKD Rating
+                            </div>
+                            <div style={{ fontSize: '1.3rem', fontWeight: 800, color: typeof pos.skd_rating === 'number' ? '#a78bfa' : 'var(--text-muted)' }}>
+                              {typeof pos.skd_rating === 'number' ? pos.skd_rating.toFixed(2) : '—'}
+                            </div>
+                            <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+                              {pos.skd_status === 'running' ? '⏳ Analyzing...' : typeof pos.skd_rating === 'number' ? 'AI Verified' : 'Pending'}
+                            </div>
+                          </div>
+
+                          {/* User Citizen Rating */}
+                          <div 
+                            style={{ flex: 1, background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.15)', borderRadius: 'var(--radius-sm)', padding: '0.6rem', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s ease' }}
+                            onClick={() => openRateModal(pos)}
+                            title="Click to view citizen reviews and ratings"
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', fontSize: '0.65rem', color: 'var(--accent-blue)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+                              <User size={10} /> User Rating
+                            </div>
+                            <div style={{ fontSize: '1.3rem', fontWeight: 800, color: hasRating ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
+                              {hasRating ? rating.toFixed(2) : '—'}
+                            </div>
+                            <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+                              {pos.total_ratings_count} {pos.total_ratings_count === 1 ? 'review' : 'reviews'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions Footer */}
+                        <div style={{ display: 'flex', gap: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: '0.25rem' }}>
+                          {pos.skd_rating !== null && (
+                            <button 
+                              className="btn btn-secondary" 
+                              style={{ flex: 1, padding: '0.4rem 0.5rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
+                              onClick={() => setSkdAnalysisTarget(pos)}
+                            >
+                              <Sparkles size={12} /> AI Analysis
+                            </button>
+                          )}
+                          <button 
+                            className={`btn ${pos.is_frozen ? 'btn-secondary' : 'btn-primary'}`} 
+                            style={{ flex: 1, padding: '0.4rem 0.5rem', fontSize: '0.8rem' }}
+                            onClick={() => openRateModal(pos)}
+                          >
+                            {pos.is_frozen ? 'View Reviews' : 'Rate / Review'}
+                          </button>
+                        </div>
+
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Premium Glassmorphic Pagination Controls */}
+              {totalPages > 1 && (
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  alignItems: 'center', 
+                  gap: '0.5rem', 
+                  marginTop: '3rem', 
+                  padding: '1rem', 
+                  background: 'var(--bg-glass)', 
+                  border: '1px solid var(--border-color)', 
+                  borderRadius: 'var(--radius-lg)',
+                  boxShadow: 'var(--shadow-sm)',
+                  flexWrap: 'wrap'
+                }}>
+                  {/* Previous Button */}
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="btn btn-secondary"
+                    style={{ 
+                      padding: '0.5rem 1rem', 
+                      fontSize: '0.85rem', 
+                      fontWeight: 600, 
+                      cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                      opacity: currentPage === 1 ? 0.4 : 1,
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    ◀ Prev
+                  </button>
+
+                  {/* Page Numbers */}
+                  <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => {
+                      const isActive = currentPage === pageNum;
+                      
+                      // For long page numbers list, limit visible numbers
+                      if (totalPages > 8) {
+                        const isFirstOrLast = pageNum === 1 || pageNum === totalPages;
+                        const isCloseToCurrent = Math.abs(pageNum - currentPage) <= 1;
+                        
+                        if (!isFirstOrLast && !isCloseToCurrent) {
+                          if (pageNum === 2 && currentPage > 3) {
+                            return <span key={pageNum} style={{ color: 'var(--text-muted)', padding: '0 0.25rem' }}>...</span>;
+                          }
+                          if (pageNum === totalPages - 1 && currentPage < totalPages - 2) {
+                            return <span key={pageNum} style={{ color: 'var(--text-muted)', padding: '0 0.25rem' }}>...</span>;
+                          }
+                          return null;
+                        }
+                      }
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          style={{
+                            background: isActive ? 'var(--accent-blue)' : 'rgba(255,255,255,0.03)',
+                            border: isActive ? '1px solid var(--accent-blue)' : '1px solid rgba(255,255,255,0.08)',
+                            color: isActive ? '#ffffff' : 'var(--text-secondary)',
+                            borderRadius: 'var(--radius-sm)',
+                            width: '36px',
+                            height: '36px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 600,
+                            fontSize: '0.85rem',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            boxShadow: isActive ? '0 0 10px rgba(59, 130, 246, 0.4)' : 'none'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                          }}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Next Button */}
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="btn btn-secondary"
+                    style={{ 
+                      padding: '0.5rem 1rem', 
+                      fontSize: '0.85rem', 
+                      fontWeight: 600, 
+                      cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                      opacity: currentPage === totalPages ? 0.4 : 1,
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Next ▶
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()
       )}
 
       {/* Citizens Rating & Review Submission Modal */}
