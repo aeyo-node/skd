@@ -808,7 +808,7 @@ def run_seeder():
                 pos_id = cur.fetchone()[0]
                 seed_default_rating(pos_id, off_id, f"hash_seed_rs_{pos_id}", 7, 7, 6)
                 count += 1
-                if count % 100 == 0:
+                if count % 25 == 0:
                     conn.commit()
                     print(f"  --> Seeded {count} Rajya Sabha MPs...")
             print(f"Ingested {count} Rajya Sabha MPs successfully.")
@@ -845,7 +845,7 @@ def run_seeder():
                 pos_id = cur.fetchone()[0]
                 seed_default_rating(pos_id, off_id, f"hash_seed_ls_{pos_id}", 7, 7, 7)
                 count += 1
-                if count % 100 == 0:
+                if count % 25 == 0:
                     conn.commit()
                     print(f"  --> Seeded {count} Lok Sabha MPs...")
             print(f"Ingested {count} Lok Sabha MPs successfully.")
@@ -860,12 +860,22 @@ def run_seeder():
         with open(mla_path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             count = 0
+            states_to_skip = ["Kerala", "Tamil Nadu", "Assam", "West Bengal", "Puducherry"]
             for row in reader:
                 row = {k.strip(): v.strip() for k, v in row.items() if k is not None}
                 name = row.get("NAME")
                 state = row.get("text-xs")
                 party = row.get("PARTY")
                 if not name or not state:
+                    continue
+                
+                # SKIP outdated states
+                skip = False
+                for s in states_to_skip:
+                    if s.lower() in state.lower():
+                        skip = True
+                        break
+                if skip:
                     continue
                     
                 off_id = insert_or_update_official(name, 'Political/Elected', f"Member of Legislative Assembly (MLA) of {state}. Party: {party if party else 'N/A'}.")
@@ -880,7 +890,7 @@ def run_seeder():
                 pos_id = cur.fetchone()[0]
                 seed_default_rating(pos_id, off_id, f"hash_seed_mla_{pos_id}", 7, 6, 7)
                 count += 1
-                if count % 100 == 0:
+                if count % 25 == 0:
                     conn.commit()
                     print(f"  --> Seeded {count} MLAs...")
             print(f"Ingested {count} MLAs successfully.")
@@ -919,11 +929,138 @@ def run_seeder():
                 pos_id = cur.fetchone()[0]
                 seed_default_rating(pos_id, off_id, f"hash_seed_mlc_{pos_id}", 7, 7, 6)
                 count += 1
-                if count % 100 == 0:
+                if count % 25 == 0:
                     conn.commit()
                     print(f"  --> Seeded {count} MLCs...")
             print(f"Ingested {count} MLCs successfully.")
             conn.commit()
+            
+    # ==============================================================
+    # 12. Parse NEW MLA data (Kerala, Tamil Nadu, Assam, West Bengal, Puducherry)
+    # ==============================================================
+    def process_new_mla(file_path, state_name, name_key, party_key, title_fmt="MLA, {state}", const_key=None):
+        if os.path.exists(file_path):
+            print(f"\n=== Parsing NEW {state_name} MLAs CSV ===")
+            with open(file_path, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                count = 0
+                for row in reader:
+                    # Some files have wonky spaces in headers
+                    row = {k.strip(): v.strip() for k, v in row.items() if k is not None}
+                    name = row.get(name_key)
+                    if not name or name.upper() == "NAME":
+                        continue
+                        
+                    party = row.get(party_key, "")
+                    const = row.get(const_key, "") if const_key else ""
+                    
+                    biodata = f"Member of Legislative Assembly (MLA) of {state_name}."
+                    if party: biodata += f" Party: {party}."
+                    if const: biodata += f" Constituency: {const}."
+                        
+                    off_id = insert_or_update_official(name, 'Political/Elected', biodata)
+                    d_id = get_or_create_department("Legislative Assembly", 'State')
+                    r_id = get_or_create_region('State', state_name)
+                    
+                    cur.execute(
+                        "INSERT INTO positions (department_id, region_id, title, current_official_id) VALUES (%s, %s, %s, %s) RETURNING id;",
+                        (d_id, r_id, title_fmt.format(state=state_name), off_id)
+                    )
+                    pos_id = cur.fetchone()[0]
+                    seed_default_rating(pos_id, off_id, f"hash_seed_new_mla_{pos_id}", 7, 6, 7)
+                    count += 1
+                    if count % 25 == 0:
+                        conn.commit()
+                        print(f"  --> Seeded {count} {state_name} MLAs...")
+                print(f"Ingested {count} {state_name} MLAs successfully.")
+                conn.commit()
+
+    base_dir = r"c:\Users\chris\Documents\public acc platform\data"
+    process_new_mla(os.path.join(base_dir, "skd data - Kerala MLAs.csv"), "Kerala", "NAME", "PARTY", "MLA, {state}", "CONSTITUENCY")
+    process_new_mla(os.path.join(base_dir, "skd data - Tamil nadu MLAs.csv"), "Tamil Nadu", "name", "party", "MLA, {state}", "seat")
+    process_new_mla(os.path.join(base_dir, "skd data - Assam MLAs.csv"), "Assam", "NAME", "PARTY", "MLA, {state}", "CONSTITUENCY")
+    process_new_mla(os.path.join(base_dir, "skd data - West bengal MLAs.csv"), "West Bengal", "NAME", "PARTY", "MLA, {state}", "CONSTITUENCY")
+    process_new_mla(os.path.join(base_dir, "skd data - Puducherry MLAs.csv"), "Puducherry", "NAME", "PARTY", "MLA, {state}")
+
+    # ==============================================================
+    # 13. Parse NEW Ministers data (Kerala, Tamil Nadu)
+    # ==============================================================
+    # Kerala Ministers
+    kerala_min_path = os.path.join(base_dir, "skd data - Kerala Ministers.csv")
+    if os.path.exists(kerala_min_path):
+        print("\n=== Parsing NEW Kerala Ministers CSV ===")
+        with open(kerala_min_path, "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            count = 0
+            # skip the first line containing just a comma or header
+            for row in reader:
+                if len(row) < 2 or not row[1] or "Ministry" in row[1]:
+                    continue
+                name = row[0].strip()
+                if not name:
+                    name = row[1].strip() # handles the wonky first row
+                if not name or "V D Satheeshan" in name and "Chief Minister" not in row[1]:
+                    pass # just process as is
+                ministry = row[1].strip()
+                
+                if "Chief Minister" in ministry:
+                    title = f"Chief Minister of Kerala"
+                    d_name = "Chief Minister's Office"
+                else:
+                    title = f"Minister, Kerala"
+                    d_name = "State Council of Ministers"
+                    
+                off_id = insert_or_update_official(name, 'Political/Elected', f"Minister of Kerala. Portfolio: {ministry}")
+                d_id = get_or_create_department(d_name, 'State')
+                r_id = get_or_create_region('State', "Kerala")
+                
+                cur.execute(
+                    "INSERT INTO positions (department_id, region_id, title, current_official_id) VALUES (%s, %s, %s, %s) RETURNING id;",
+                    (d_id, r_id, title, off_id)
+                )
+                pos_id = cur.fetchone()[0]
+                seed_default_rating(pos_id, off_id, f"hash_seed_new_min_{pos_id}", 8, 7, 7)
+                count += 1
+        print(f"Ingested {count} Kerala Ministers successfully.")
+        conn.commit()
+
+    # Tamil Nadu Ministers
+    tn_min_path = os.path.join(base_dir, "skd data - Tamil nadu ministers.csv")
+    if os.path.exists(tn_min_path):
+        print("\n=== Parsing NEW Tamil Nadu Ministers CSV ===")
+        with open(tn_min_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            count = 0
+            for row in reader:
+                row = {k.strip(): v.strip() for k, v in row.items() if k is not None}
+                name = row.get("Minister Name")
+                ministry = row.get("Dedicated Ministry")
+                party = row.get("Party")
+                
+                if not name or name == "Minister Name":
+                    continue
+                    
+                if ministry and "Chief Minister" in ministry:
+                    title = f"Chief Minister of Tamil Nadu"
+                    d_name = "Chief Minister's Office"
+                else:
+                    title = f"Minister, Tamil Nadu"
+                    d_name = "State Council of Ministers"
+                    
+                off_id = insert_or_update_official(name, 'Political/Elected', f"Minister of Tamil Nadu. Portfolio: {ministry}. Party: {party if party else 'N/A'}.")
+                d_id = get_or_create_department(d_name, 'State')
+                r_id = get_or_create_region('State', "Tamil Nadu")
+                
+                cur.execute(
+                    "INSERT INTO positions (department_id, region_id, title, current_official_id) VALUES (%s, %s, %s, %s) RETURNING id;",
+                    (d_id, r_id, title, off_id)
+                )
+                pos_id = cur.fetchone()[0]
+                seed_default_rating(pos_id, off_id, f"hash_seed_new_min_{pos_id}", 8, 7, 7)
+                count += 1
+        print(f"Ingested {count} Tamil Nadu Ministers successfully.")
+        conn.commit()
+
             
     print("\nCommitting transaction...")
     conn.commit()
