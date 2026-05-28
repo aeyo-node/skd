@@ -57,6 +57,16 @@ export default function AdminDashboard() {
   const [directorySearch, setDirectorySearch] = useState('');
   const [ledgerSearch, setLedgerSearch] = useState('');
 
+  // Data Management States
+  const [dataManageMode, setDataManageMode] = useState('positions'); // 'positions' or 'officials'
+  const [dataSearch, setDataSearch] = useState('');
+  const [editingOfficial, setEditingOfficial] = useState(null);
+  const [editingPosition, setEditingPosition] = useState(null);
+  const [isAddingOfficial, setIsAddingOfficial] = useState(false);
+  const [isAddingPosition, setIsAddingPosition] = useState(false);
+  const [deletingRecord, setDeletingRecord] = useState(null); // { type: 'official'|'position', id, name }
+  const [crudMessage, setCrudMessage] = useState('');
+
   // Transfer Tool State
   const [transferPosId, setTransferPosId] = useState('');
   const [transferNewOfficialId, setTransferNewOfficialId] = useState('');
@@ -84,6 +94,114 @@ export default function AdminDashboard() {
   ]);
   const [runningBatch, setRunningBatch] = useState(false);
   const [runningSingleId, setRunningSingleId] = useState(null);
+
+  // Cloud background batch engine states
+  const [cloudBatch, setCloudBatch] = useState({
+    status: 'idle',
+    total: 0,
+    completed: 0,
+    failed: 0,
+    currentIndex: 0,
+    currentOfficial: '',
+    currentPositionTitle: '',
+    startTime: null,
+    stopRequested: false,
+    error: null
+  });
+
+  // Fetch cloud background batch engine status
+  const fetchCloudBatchStatus = async () => {
+    try {
+      const res = await fetch('/api/skd-agent-batch');
+      if (res.ok) {
+        const data = await res.json();
+        setCloudBatch(data);
+      }
+    } catch (err) {
+      console.error('Error fetching cloud batch status:', err);
+    }
+  };
+
+  // Poll cloud batch status every 3 seconds only when activeTab is 'ai-agent'
+  useEffect(() => {
+    if (activeTab === 'ai-agent') {
+      fetchCloudBatchStatus();
+      const interval = setInterval(() => {
+        fetchCloudBatchStatus();
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab]);
+
+  // Start cloud background batch
+  const startCloudBatch = async (concurrency = 2) => {
+    try {
+      const timestamp = new Date().toLocaleTimeString();
+      setAgentLogs(prev => [
+        `[${timestamp}] ☁️ Requesting server-side Cloud Batch start (Concurrency: ${concurrency})...`,
+        ...prev
+      ]);
+      const res = await fetch('/api/skd-agent-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start', concurrency })
+      });
+      const data = await res.json();
+      fetchCloudBatchStatus();
+      const doneTime = new Date().toLocaleTimeString();
+      if (data.success) {
+        setAgentLogs(prev => [
+          `[${doneTime}] ☁️ Cloud Batch successfully initiated! Server-side worker is active.`,
+          ...prev
+        ]);
+      } else {
+        setAgentLogs(prev => [
+          `[${doneTime}] ❌ Cloud Batch initiation rejected: ${data.message || data.error}`,
+          ...prev
+        ]);
+      }
+    } catch (err) {
+      setAgentLogs(prev => [
+        `[${new Date().toLocaleTimeString()}] ❌ Cloud Batch initiation error: ${err.message}`,
+        ...prev
+      ]);
+    }
+  };
+
+  // Stop cloud background batch
+  const stopCloudBatch = async () => {
+    try {
+      const timestamp = new Date().toLocaleTimeString();
+      setAgentLogs(prev => [
+        `[${timestamp}] 🛑 Requesting server-side Cloud Batch termination...`,
+        ...prev
+      ]);
+      const res = await fetch('/api/skd-agent-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'stop' })
+      });
+      const data = await res.json();
+      fetchCloudBatchStatus();
+      const doneTime = new Date().toLocaleTimeString();
+      if (data.success) {
+        setAgentLogs(prev => [
+          `[${doneTime}] 🛑 Cloud Batch stop requested. Real-time workers are aborting.`,
+          ...prev
+        ]);
+      } else {
+        setAgentLogs(prev => [
+          `[${doneTime}] ❌ Cloud Batch stop rejected: ${data.message || data.error}`,
+          ...prev
+        ]);
+      }
+    } catch (err) {
+      setAgentLogs(prev => [
+        `[${new Date().toLocaleTimeString()}] ❌ Cloud Batch stop error: ${err.message}`,
+        ...prev
+      ]);
+    }
+  };
 
   // Trigger Gemini web search analysis for a single position
   const triggerSingleAgent = async (posId, title, officialName) => {
@@ -124,6 +242,7 @@ export default function AdminDashboard() {
       setRunningSingleId(null);
     }
   };
+
 
   // Trigger Gemini web search analysis for all positions
   const triggerBatchAgent = async () => {
@@ -313,6 +432,64 @@ export default function AdminDashboard() {
     }
   };
 
+  // CRUD Handlers
+  const handleSaveOfficial = async (officialData) => {
+    setCrudMessage('Saving...');
+    let res;
+    if (officialData.id) {
+      res = await db.updateOfficial(officialData.id, officialData);
+    } else {
+      res = await db.addOfficial(officialData);
+    }
+    if (res.success) {
+      setCrudMessage('✅ Official saved successfully!');
+      setEditingOfficial(null);
+      setIsAddingOfficial(false);
+      loadData();
+    } else {
+      setCrudMessage(`❌ Error: ${res.error}`);
+    }
+    setTimeout(() => setCrudMessage(''), 3000);
+  };
+
+  const handleSavePosition = async (posData) => {
+    setCrudMessage('Saving...');
+    let res;
+    if (posData.id) {
+      res = await db.updatePosition(posData.id, posData);
+    } else {
+      res = await db.addPosition(posData);
+    }
+    if (res.success) {
+      setCrudMessage('✅ Position saved successfully!');
+      setEditingPosition(null);
+      setIsAddingPosition(false);
+      loadData();
+    } else {
+      setCrudMessage(`❌ Error: ${res.error}`);
+    }
+    setTimeout(() => setCrudMessage(''), 3000);
+  };
+
+  const handleDeleteRecord = async () => {
+    if (!deletingRecord) return;
+    setCrudMessage('Deleting...');
+    let res;
+    if (deletingRecord.type === 'official') {
+      res = await db.deleteOfficial(deletingRecord.id);
+    } else {
+      res = await db.deletePosition(deletingRecord.id);
+    }
+    if (res.success) {
+      setCrudMessage(`✅ ${deletingRecord.type} deleted successfully!`);
+      setDeletingRecord(null);
+      loadData();
+    } else {
+      setCrudMessage(`❌ Error: ${res.error}`);
+    }
+    setTimeout(() => setCrudMessage(''), 3000);
+  };
+
   // Moderator actions on reviews queue
   const handleModerateReview = (reviewId, approved) => {
     setReportedReviews(prev => prev.filter(item => item.id !== reviewId));
@@ -327,9 +504,9 @@ export default function AdminDashboard() {
 
   // Filtering Position Directory
   const filteredPositions = positions.filter(p => 
-    p.position_title.toLowerCase().includes(directorySearch.toLowerCase()) ||
-    p.current_official_name.toLowerCase().includes(directorySearch.toLowerCase()) ||
-    p.department_name.toLowerCase().includes(directorySearch.toLowerCase())
+    (p.position_title && p.position_title.toLowerCase().includes(directorySearch.toLowerCase())) ||
+    (p.current_official_name && p.current_official_name.toLowerCase().includes(directorySearch.toLowerCase())) ||
+    (p.department_name && p.department_name.toLowerCase().includes(directorySearch.toLowerCase()))
   );
 
   // Filtering Audit Ledger
@@ -385,6 +562,13 @@ export default function AdminDashboard() {
             style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
           >
             <FileSpreadsheet size={16} /> <span style={{ marginLeft: '8px' }}>Audit Trail</span>
+          </button>
+          <button 
+            onClick={() => setActiveTab('data-manage')} 
+            className={`sidebar-link ${activeTab === 'data-manage' ? 'active' : ''}`}
+            style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+          >
+            <Settings size={16} /> <span style={{ marginLeft: '8px' }}>Data Management</span>
           </button>
           <button 
             onClick={() => setActiveTab('ai-agent')} 
@@ -986,10 +1170,149 @@ export default function AdminDashboard() {
                           {log}
                         </div>
                       ))}
+                  </div>
+                </div>
+              </div>
+
+                {/* Cloud Background Engine Controller */}
+                <div className="glass-card" style={{ 
+                  background: 'linear-gradient(135deg, rgba(14, 13, 26, 0.95), rgba(24, 21, 51, 0.95))', 
+                  border: '1px solid rgba(139, 92, 246, 0.35)', 
+                  borderRadius: 'var(--radius-lg)', 
+                  padding: '1.5rem',
+                  boxShadow: '0 8px 32px rgba(139, 92, 246, 0.15)',
+                  backdropFilter: 'blur(12px)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+                        <Bot size={24} style={{ color: '#c084fc' }} />
+                        <h4 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#f3e8ff', textShadow: '0 0 10px rgba(192, 132, 252, 0.2)' }}>Cloud-Native Background Batch Engine</h4>
+                        <span style={{ 
+                          background: cloudBatch.status === 'running' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', 
+                          color: cloudBatch.status === 'running' ? '#10b981' : '#ef4444', 
+                          border: `1px solid ${cloudBatch.status === 'running' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
+                          padding: '0.25rem 0.75rem', 
+                          borderRadius: '20px', 
+                          fontSize: '0.75rem', 
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
+                        }}>
+                          <span style={{ 
+                            width: '6px', 
+                            height: '6px', 
+                            borderRadius: '50%', 
+                            background: cloudBatch.status === 'running' ? '#10b981' : '#ef4444',
+                            animation: cloudBatch.status === 'running' ? 'pulse 1.5s infinite' : 'none'
+                          }}></span>
+                          Cloud Status: {cloudBatch.status}
+                        </span>
+                      </div>
+                      <p style={{ color: '#d8b4fe', fontSize: '0.85rem', margin: 0, opacity: 0.85 }}>
+                        Runs asynchronously on the server. You can close your browser or shut down your laptop; execution continues autonomously.
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                      {cloudBatch.status !== 'running' ? (
+                        <button 
+                          onClick={() => startCloudBatch(2)}
+                          className="btn"
+                          style={{ 
+                            background: 'linear-gradient(135deg, #10b981, #059669)', 
+                            color: '#ffffff', 
+                            border: 'none', 
+                            padding: '0.65rem 1.25rem', 
+                            fontSize: '0.85rem', 
+                            fontWeight: 700, 
+                            borderRadius: 'var(--radius-md)', 
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            transition: 'all 0.2s ease',
+                            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)'
+                          }}
+                        >
+                          <Sparkles size={14} /> Start Cloud Batch
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={stopCloudBatch}
+                          className="btn"
+                          style={{ 
+                            background: 'linear-gradient(135deg, #ef4444, #dc2626)', 
+                            color: '#ffffff', 
+                            border: 'none', 
+                            padding: '0.65rem 1.25rem', 
+                            fontSize: '0.85rem', 
+                            fontWeight: 700, 
+                            borderRadius: 'var(--radius-md)', 
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            transition: 'all 0.2s ease',
+                            boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)'
+                          }}
+                        >
+                          <AlertTriangle size={14} /> Stop Cloud Batch
+                        </button>
+                      )}
                     </div>
                   </div>
 
+                  {cloudBatch.status === 'running' && (
+                    <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255,255,255,0.03)' }}>
+                      {/* Active Official details */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontSize: '0.85rem', color: '#c084fc' }}>Currently Rating:</span>
+                          <strong style={{ fontSize: '0.9rem', color: '#ffffff' }}>{cloudBatch.currentOfficial}</strong>
+                          <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', opacity: 0.8 }}>({cloudBatch.currentPositionTitle})</span>
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: '#a78bfa' }}>
+                          Progress: <strong>{cloudBatch.completed + cloudBatch.failed}</strong> / <strong>{cloudBatch.total}</strong> pending ({Math.round(((cloudBatch.completed + cloudBatch.failed) / (cloudBatch.total || 1)) * 100)}%)
+                        </div>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden', marginBottom: '0.75rem' }}>
+                        <div style={{ 
+                          width: `${((cloudBatch.completed + cloudBatch.failed) / (cloudBatch.total || 1)) * 100}%`, 
+                          height: '100%', 
+                          background: 'linear-gradient(90deg, #a78bfa, #10b981)', 
+                          borderRadius: '4px',
+                          transition: 'width 0.5s ease-out'
+                        }}></div>
+                      </div>
+
+                      {/* Detailed metrics */}
+                      <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        <div>✅ Completed: <strong style={{ color: '#10b981' }}>{cloudBatch.completed}</strong></div>
+                        <div>❌ Failed: <strong style={{ color: '#ef4444' }}>{cloudBatch.failed}</strong></div>
+                        <div>⏱️ Started At: <span style={{ color: '#ffffff' }}>{cloudBatch.startTime ? new Date(cloudBatch.startTime).toLocaleTimeString() : 'N/A'}</span></div>
+                      </div>
+                    </div>
+                  )}
+
+                  {cloudBatch.status !== 'running' && cloudBatch.total > 0 && (
+                    <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255,255,255,0.03)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        Last Run Status: <strong style={{ color: cloudBatch.status === 'stopped' ? '#f59e0b' : '#10b981', textTransform: 'uppercase' }}>{cloudBatch.status}</strong>
+                        {cloudBatch.error && <span style={{ color: '#ef4444', marginLeft: '0.5rem' }}>— Error: {cloudBatch.error}</span>}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        Processed: <strong>{cloudBatch.completed}</strong> succeeded, <strong>{cloudBatch.failed}</strong> failed out of <strong>{cloudBatch.total}</strong> total items.
+                      </div>
+                    </div>
+                  )}
                 </div>
+
 
                 {/* 2. Position Matrix list */}
                 <div className="glass-card" style={{ background: '#0e0d1a', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 'var(--radius-lg)', padding: '1.5rem' }}>
@@ -1068,6 +1391,179 @@ export default function AdminDashboard() {
                     </table>
                   </div>
                 </div>
+
+              </div>
+            )}
+
+            {/* TABS 5: Data Management */}
+            {activeTab === 'data-manage' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Settings size={18} style={{ color: 'var(--accent-blue)' }} /> Data Management (CRUD)
+                  </h3>
+                  <div style={{ display: 'flex', gap: '1rem' }}>
+                    <button 
+                      onClick={() => setDataManageMode('positions')}
+                      className={`btn ${dataManageMode === 'positions' ? 'btn-primary' : 'btn-secondary'}`}
+                    >
+                      Positions
+                    </button>
+                    <button 
+                      onClick={() => setDataManageMode('officials')}
+                      className={`btn ${dataManageMode === 'officials' ? 'btn-primary' : 'btn-secondary'}`}
+                    >
+                      Officials
+                    </button>
+                  </div>
+                </div>
+
+                {crudMessage && (
+                  <div style={{ padding: '1rem', marginBottom: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    {crudMessage}
+                  </div>
+                )}
+
+                {/* Controls */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                  <input 
+                    type="text" 
+                    className="admin-search-input" 
+                    style={{ maxWidth: '300px' }}
+                    placeholder={`Search ${dataManageMode}...`} 
+                    value={dataSearch}
+                    onChange={(e) => setDataSearch(e.target.value)}
+                  />
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => {
+                      if (dataManageMode === 'positions') {
+                        setEditingPosition({ title: '', department_id: 1, region_id: 1, current_official_id: '' });
+                        setIsAddingPosition(true);
+                      } else {
+                        setEditingOfficial({ first_name: '', last_name: '', service_cadre: '', biodata: '', image_url: '' });
+                        setIsAddingOfficial(true);
+                      }
+                    }}
+                  >
+                    + Add {dataManageMode === 'positions' ? 'Position' : 'Official'}
+                  </button>
+                </div>
+
+                {/* Table View */}
+                <div className="glass-card" style={{ background: '#0e0d1a', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 'var(--radius-lg)' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', textAlign: 'left', color: 'var(--text-muted)' }}>
+                        <th style={{ padding: '1rem 0.5rem' }}>ID</th>
+                        <th style={{ padding: '1rem 0.5rem' }}>Name/Title</th>
+                        <th style={{ padding: '1rem 0.5rem' }}>Details</th>
+                        <th style={{ padding: '1rem 0.5rem', textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dataManageMode === 'positions' ? 
+                        positions.filter(p => p.position_title && p.position_title.toLowerCase().includes(dataSearch.toLowerCase())).map(p => (
+                          <tr key={p.position_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                            <td style={{ padding: '0.75rem 0.5rem' }}>{p.position_id}</td>
+                            <td style={{ padding: '0.75rem 0.5rem', fontWeight: 600 }}>{p.position_title}</td>
+                            <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-muted)' }}>
+                              Dep: {p.department_name} | Official: {p.current_official_name}
+                            </td>
+                            <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
+                              <button className="btn btn-secondary" style={{ marginRight: '0.5rem', padding: '0.2rem 0.5rem' }} onClick={() => { setEditingPosition(p); setIsAddingPosition(false); }}>Edit</button>
+                              <button className="btn btn-danger" style={{ padding: '0.2rem 0.5rem' }} onClick={() => setDeletingRecord({ type: 'position', id: p.position_id, name: p.position_title })}>Del</button>
+                            </td>
+                          </tr>
+                        ))
+                      : 
+                        officials.filter(o => ((o.first_name || '') + ' ' + (o.last_name || '')).toLowerCase().includes(dataSearch.toLowerCase())).map(o => (
+                          <tr key={o.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                            <td style={{ padding: '0.75rem 0.5rem' }}>...{String(o.id).slice(-4)}</td>
+                            <td style={{ padding: '0.75rem 0.5rem', fontWeight: 600 }}>{o.first_name} {o.last_name}</td>
+                            <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-muted)' }}>
+                              Cadre: {o.service_cadre}
+                            </td>
+                            <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
+                              <button className="btn btn-secondary" style={{ marginRight: '0.5rem', padding: '0.2rem 0.5rem' }} onClick={() => { setEditingOfficial(o); setIsAddingOfficial(false); }}>Edit</button>
+                              <button className="btn btn-danger" style={{ padding: '0.2rem 0.5rem' }} onClick={() => setDeletingRecord({ type: 'official', id: o.id, name: `${o.first_name} ${o.last_name}` })}>Del</button>
+                            </td>
+                          </tr>
+                        ))
+                      }
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Edit/Add Official Modal */}
+                {editingOfficial && (
+                  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="glass-card" style={{ background: '#0e0d1a', width: '500px', padding: '2rem', borderRadius: 'var(--radius-lg)' }}>
+                      <h3 style={{ marginTop: 0 }}>{isAddingOfficial ? 'Add New Official' : 'Edit Official'}</h3>
+                      <input className="admin-search-input" style={{ width: '100%', marginBottom: '1rem' }} placeholder="First Name" value={editingOfficial.first_name || ''} onChange={e => setEditingOfficial({...editingOfficial, first_name: e.target.value})} />
+                      <input className="admin-search-input" style={{ width: '100%', marginBottom: '1rem' }} placeholder="Last Name" value={editingOfficial.last_name || ''} onChange={e => setEditingOfficial({...editingOfficial, last_name: e.target.value})} />
+                      <input className="admin-search-input" style={{ width: '100%', marginBottom: '1rem' }} placeholder="Service Cadre" value={editingOfficial.service_cadre || ''} onChange={e => setEditingOfficial({...editingOfficial, service_cadre: e.target.value})} />
+                      <input className="admin-search-input" style={{ width: '100%', marginBottom: '1rem' }} placeholder="Image URL" value={editingOfficial.image_url || ''} onChange={e => setEditingOfficial({...editingOfficial, image_url: e.target.value})} />
+                      <textarea className="admin-search-input" style={{ width: '100%', marginBottom: '1rem', minHeight: '80px' }} placeholder="Biodata" value={editingOfficial.biodata || ''} onChange={e => setEditingOfficial({...editingOfficial, biodata: e.target.value})} />
+                      <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                        <button className="btn btn-secondary" onClick={() => setEditingOfficial(null)}>Cancel</button>
+                        <button className="btn btn-primary" onClick={() => handleSaveOfficial(editingOfficial)}>Save</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Edit/Add Position Modal */}
+                {editingPosition && (
+                  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="glass-card" style={{ background: '#0e0d1a', width: '500px', padding: '2rem', borderRadius: 'var(--radius-lg)' }}>
+                      <h3 style={{ marginTop: 0 }}>{isAddingPosition ? 'Add New Position' : 'Edit Position'}</h3>
+                      <input className="admin-search-input" style={{ width: '100%', marginBottom: '1rem' }} placeholder="Position Title" value={editingPosition.title || editingPosition.position_title || ''} onChange={e => setEditingPosition({...editingPosition, title: e.target.value, position_title: e.target.value})} />
+                      <div style={{ marginBottom: '1rem' }}>
+                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Department ID</label>
+                        <input type="number" className="admin-search-input" style={{ width: '100%' }} value={editingPosition.department_id || ''} onChange={e => setEditingPosition({...editingPosition, department_id: parseInt(e.target.value)})} />
+                      </div>
+                      <div style={{ marginBottom: '1rem' }}>
+                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Region ID</label>
+                        <input type="number" className="admin-search-input" style={{ width: '100%' }} value={editingPosition.region_id || ''} onChange={e => setEditingPosition({...editingPosition, region_id: parseInt(e.target.value)})} />
+                      </div>
+                      <div style={{ marginBottom: '1rem' }}>
+                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Current Official ID</label>
+                        <select className="admin-search-input" style={{ width: '100%' }} value={editingPosition.current_official_id || ''} onChange={e => setEditingPosition({...editingPosition, current_official_id: e.target.value})}>
+                          <option value="">Vacant</option>
+                          {officials.map(o => (
+                            <option key={o.id} value={o.id}>{o.first_name} {o.last_name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                        <button className="btn btn-secondary" onClick={() => setEditingPosition(null)}>Cancel</button>
+                        <button className="btn btn-primary" onClick={() => handleSavePosition({
+                          id: editingPosition.id || editingPosition.position_id,
+                          title: editingPosition.title || editingPosition.position_title,
+                          department_id: editingPosition.department_id,
+                          region_id: editingPosition.region_id,
+                          current_official_id: editingPosition.current_official_id || null
+                        })}>Save</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Delete Confirmation Modal */}
+                {deletingRecord && (
+                  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="glass-card" style={{ background: '#0e0d1a', width: '400px', padding: '2rem', borderRadius: 'var(--radius-lg)', textAlign: 'center' }}>
+                      <AlertTriangle size={32} style={{ color: 'var(--accent-red)', margin: '0 auto 1rem auto' }} />
+                      <h3 style={{ marginTop: 0 }}>Confirm Deletion</h3>
+                      <p style={{ color: 'var(--text-secondary)' }}>Are you sure you want to delete the {deletingRecord.type} <strong>{deletingRecord.name}</strong>? This action cannot be undone.</p>
+                      <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '1.5rem' }}>
+                        <button className="btn btn-secondary" onClick={() => setDeletingRecord(null)}>Cancel</button>
+                        <button className="btn btn-danger" onClick={handleDeleteRecord}>Yes, Delete</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
               </div>
             )}

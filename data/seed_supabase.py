@@ -188,10 +188,55 @@ def run_seeder():
 
     print("Connecting to Supabase PostgreSQL database...")
     try:
-        conn = psycopg2.connect(DB_CONN)
+        conn = psycopg2.connect(
+            DB_CONN,
+            keepalives=1,
+            keepalives_idle=30,
+            keepalives_interval=10,
+            keepalives_count=5,
+            connect_timeout=30
+        )
         conn.autocommit = True
         cur = conn.cursor()
         print("Connected successfully!")
+        
+        def reconnect_if_needed():
+            """Re-establish connection if it was dropped by Supabase."""
+            nonlocal conn, cur
+            try:
+                cur.execute("SELECT 1")
+                cur.fetchone()
+            except Exception:
+                print("  [!] Connection lost, reconnecting...")
+                try: conn.close()
+                except: pass
+                conn = psycopg2.connect(
+                    DB_CONN,
+                    keepalives=1,
+                    keepalives_idle=30,
+                    keepalives_interval=10,
+                    keepalives_count=5,
+                    connect_timeout=30
+                )
+                conn.autocommit = True
+                cur = conn.cursor()
+                print("  [+] Reconnected successfully!")
+        
+        def safe_execute(sql, params=None):
+            """Execute SQL with auto-reconnect on failure."""
+            nonlocal conn, cur
+            for attempt in range(3):
+                try:
+                    cur.execute(sql, params)
+                    return cur
+                except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                    if attempt < 2:
+                        import time
+                        print(f"  [!] DB error (attempt {attempt+1}/3): {e}")
+                        time.sleep(2)
+                        reconnect_if_needed()
+                    else:
+                        raise
         
         # Terminate other connections to avoid table locks
         print("Terminating other active database sessions to prevent locks...")
@@ -312,9 +357,10 @@ def run_seeder():
     except Exception as e:
         print(f"Error recreating database view: {e}")
 
-    # Set autocommit to False for rapid bulk seeding inside a single transaction
-    print("Disabling autocommit for bulk insert speed optimization...")
-    conn.autocommit = False
+    # Use autocommit=True so each INSERT commits immediately.
+    # This prevents Supabase free-tier from killing long-running transactions.
+    print("Setting autocommit=True for stable Supabase connection...")
+    conn.autocommit = True
 
     # Dynamic Region and Department Lookup Helpers
     region_cache = {}
@@ -418,14 +464,24 @@ def run_seeder():
         return new_id
 
     def seed_default_rating(pos_id, off_id, user_hash, score_int=8, score_eff=8, score_acc=7, review="System initialized rating scorecard."):
-        cur.execute(
-            """
-            INSERT INTO ratings (position_id, official_id, user_hash, score_integrity, score_efficiency, score_accessibility, review_text)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT DO NOTHING;
-            """,
-            (pos_id, off_id, user_hash, score_int, score_eff, score_acc, review)
-        )
+        for attempt in range(3):
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO ratings (position_id, official_id, user_hash, score_integrity, score_efficiency, score_accessibility, review_text)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT DO NOTHING;
+                    """,
+                    (pos_id, off_id, user_hash, score_int, score_eff, score_acc, review)
+                )
+                return
+            except Exception as e:
+                if attempt < 2:
+                    import time
+                    time.sleep(1)
+                    reconnect_if_needed()
+                else:
+                    print(f"  [!] Failed to seed rating after 3 attempts: {e}")
 
     # Pre-populate regions cache
     get_or_create_region('Central')
@@ -891,7 +947,6 @@ def run_seeder():
                 seed_default_rating(pos_id, off_id, f"hash_seed_mla_{pos_id}", 7, 6, 7)
                 count += 1
                 if count % 25 == 0:
-                    conn.commit()
                     print(f"  --> Seeded {count} MLAs...")
             print(f"Ingested {count} MLAs successfully.")
             conn.commit()

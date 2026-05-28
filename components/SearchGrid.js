@@ -88,6 +88,7 @@ const getInitials = (name) => {
 };
 
 const getGradientStyle = (name) => {
+  if (!name) return { background: 'var(--bg-secondary)', color: 'var(--text-muted)' };
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash);
@@ -330,11 +331,11 @@ export default function SearchGrid() {
       result = result.map(pos => {
         let matchScore = 0;
         const titleLower = pos.position_title.toLowerCase();
-        const officialLower = pos.current_official_name.toLowerCase();
-        const deptLower = pos.department_name.toLowerCase();
+        const officialLower = pos.current_official_name ? pos.current_official_name.toLowerCase() : '';
+        const deptLower = pos.department_name ? pos.department_name.toLowerCase() : '';
         const stateLower = pos.state_name ? pos.state_name.toLowerCase() : '';
         const districtLower = pos.district_name ? pos.district_name.toLowerCase() : '';
-        const cadreLower = pos.service_cadre.toLowerCase();
+        const cadreLower = pos.service_cadre ? pos.service_cadre.toLowerCase() : '';
 
         tokens.forEach(token => {
           if (titleLower.includes(token)) matchScore += 10;
