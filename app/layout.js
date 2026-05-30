@@ -22,7 +22,6 @@ export default function RootLayout({ children }) {
             </div>
             <nav className="header-nav">
               <a href="/" className="nav-link">Directory</a>
-              <a href="/admin/dashboard" className="nav-link admin-pill">Admin Portal</a>
             </nav>
           </header>
           
